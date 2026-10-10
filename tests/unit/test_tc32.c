@@ -268,6 +268,46 @@ static void test_tc32_long_branches(void)
     OK(uc_close(uc));
 }
 
+static void test_tc32_treti_restores_from_irq_stack(void)
+{
+    uc_engine *uc;
+    const uint8_t code[] = {0x00, 0x69}; /* treti {pc} */
+    const uint8_t stacked_return_pc[] = {0x00, 0x20, 0x00, 0x00};
+    const uint32_t irq_mode = 0x12;
+    const uint32_t svc_cpsr = 0x60000013;
+    const uint32_t irq_sp = 0x1800;
+    const uint32_t svc_sp = 0x2800;
+    const uint32_t return_pc = 0x2000;
+    const uint32_t irq_lr_decoy = 0x3000;
+    uint32_t value = 0;
+
+    OK(uc_open(UC_ARCH_TC32, UC_MODE_LITTLE_ENDIAN, &uc));
+    /* The interrupt return target must remain mapped while Unicorn resumes. */
+    OK(uc_mem_map(uc, code_start, 0x4000, UC_PROT_ALL));
+    OK(uc_mem_write(uc, code_start, code, sizeof(code)));
+    OK(uc_mem_write(uc, irq_sp, stacked_return_pc,
+                    sizeof(stacked_return_pc)));
+    OK(uc_reg_write(uc, UC_TC32_REG_SP, &svc_sp));
+    OK(uc_reg_write(uc, UC_TC32_REG_CPSR, &irq_mode));
+    OK(uc_reg_write(uc, UC_TC32_REG_SP, &irq_sp));
+    OK(uc_reg_write(uc, UC_TC32_REG_LR, &irq_lr_decoy));
+    OK(uc_reg_write(uc, UC_TC32_REG_SPSR, &svc_cpsr));
+
+    OK(uc_emu_start(uc, code_start, code_start + sizeof(code), 0, 1));
+    OK(uc_reg_read(uc, UC_TC32_REG_PC, &value));
+    TEST_CHECK(value == return_pc);
+    OK(uc_reg_read(uc, UC_TC32_REG_CPSR, &value));
+    TEST_CHECK(value == svc_cpsr);
+    OK(uc_reg_read(uc, UC_TC32_REG_SP, &value));
+    TEST_CHECK(value == svc_sp);
+
+    value = irq_mode;
+    OK(uc_reg_write(uc, UC_TC32_REG_CPSR, &value));
+    OK(uc_reg_read(uc, UC_TC32_REG_SP, &value));
+    TEST_CHECK(value == irq_sp + sizeof(uint32_t));
+    OK(uc_close(uc));
+}
+
 TEST_LIST = {
     {"tc32_open_and_arithmetic", test_tc32_open_and_arithmetic},
     {"tc32_pc_literal_load", test_tc32_pc_literal_load},
@@ -279,5 +319,6 @@ TEST_LIST = {
     {"tc32_long_conditional_branch", test_tc32_long_conditional_branch},
     {"tc32_short_unconditional_branch", test_tc32_short_unconditional_branch},
     {"tc32_instruction_fetch_alias", test_tc32_instruction_fetch_alias},
+    {"tc32_treti_restores_from_irq_stack", test_tc32_treti_restores_from_irq_stack},
     {NULL, NULL},
 };

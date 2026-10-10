@@ -48,7 +48,14 @@ void helper_uc_tc32_write_cpsr(TC32CPUState *env, uint32_t value)
 void helper_uc_tc32_treti(TC32CPUState *env)
 {
     unsigned mode = env->cpsr & TC32_CPSR_MODE_MASK;
-    uint32_t target = env->regs[14];
+    /* TC32's ``treti {pc}`` consumes the interrupt return address from the
+     * current stack. The vendor IRQ entry saves LR with tpush {lr} and ends
+     * with treti {pc}; LR itself has been overwritten by calls made in IRQ
+     * mode by then.
+     */
+    uint32_t stack = env->regs[13];
+    uint32_t target = cpu_ldl_data(env, stack);
+    env->regs[13] = stack + 4;
 
     tc32_write_cpsr(env, env->spsr[mode]);
     env->regs[15] = target & ~1u;
