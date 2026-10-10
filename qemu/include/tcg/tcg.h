@@ -799,6 +799,10 @@ struct TCGContext {
     TCGv_i32 cpu_gpr_d[16];
     TCGv_i32 cpu_PSW_C, cpu_PSW_V, cpu_PSW_SV, cpu_PSW_AV, cpu_PSW_SAV;
     TCGv_i32 cpu_PC, cpu_PCXI, cpu_PSW, cpu_ICR;
+
+    // target/tc32/translate.c
+    TCGv_i32 cpu_tc32_cpsr;
+    TCGv_i32 cpu_tc32_ssr;
     
     // Used to store the start of current instrution.
     uint64_t pc_start;

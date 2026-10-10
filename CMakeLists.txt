@@ -86,7 +86,7 @@ option(UNICORN_FUZZ "Enable fuzzing" OFF)
 option(UNICORN_LOGGING "Enable logging" OFF)
 option(UNICORN_BUILD_TESTS "Build unicorn tests" ${PROJECT_IS_TOP_LEVEL})
 option(UNICORN_INSTALL "Enable unicorn installation" ${PROJECT_IS_TOP_LEVEL})
-set(UNICORN_ARCH "x86;arm;aarch64;riscv;mips;sparc;m68k;ppc;s390x;tricore" CACHE STRING "Enabled unicorn architectures")
+set(UNICORN_ARCH "x86;arm;aarch64;riscv;mips;sparc;m68k;ppc;s390x;tricore;tc32" CACHE STRING "Enabled unicorn architectures")
 option(UNICORN_TRACER "Trace unicorn execution" OFF)
 
 foreach(ARCH_LOOP ${UNICORN_ARCH})
@@ -314,6 +314,9 @@ else()
     if (UNICORN_HAS_TRICORE)
         set (EXTRA_CFLAGS "${EXTRA_CFLAGS}-DUNICORN_HAS_TRICORE ")
     endif()
+    if (UNICORN_HAS_TC32)
+        set (EXTRA_CFLAGS "${EXTRA_CFLAGS}-DUNICORN_HAS_TC32 ")
+    endif()
 
     set(EXTRA_CFLAGS "${EXTRA_CFLAGS}-fPIC")
     if(ANDROID_ABI)
@@ -364,6 +367,9 @@ else()
     endif()
     if (UNICORN_HAS_TRICORE)
         set (TARGET_LIST "${TARGET_LIST}tricore-softmmu, ")
+    endif()
+    if (UNICORN_HAS_TC32)
+        set (TARGET_LIST "${TARGET_LIST}tc32-softmmu, ")
     endif()
     set(TARGET_LIST "${TARGET_LIST} ")
 
@@ -466,6 +472,12 @@ else()
         execute_process(COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/qemu/scripts/create_config
             INPUT_FILE ${CMAKE_BINARY_DIR}/tricore-softmmu/config-target.mak
             OUTPUT_FILE ${CMAKE_BINARY_DIR}/tricore-softmmu/config-target.h
+        )
+    endif()
+    if (UNICORN_HAS_TC32)
+        execute_process(COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/qemu/scripts/create_config
+            INPUT_FILE ${CMAKE_BINARY_DIR}/tc32-softmmu/config-target.mak
+            OUTPUT_FILE ${CMAKE_BINARY_DIR}/tc32-softmmu/config-target.h
         )
     endif()
     add_compile_options(
@@ -1166,6 +1178,34 @@ endif()
 endif()
 
 
+if (UNICORN_HAS_TC32)
+add_library(tc32-softmmu STATIC
+    ${UNICORN_ARCH_COMMON}
+
+    qemu/target/tc32/cpu.c
+    qemu/target/tc32/helper.c
+    qemu/target/tc32/translate.c
+    qemu/target/tc32/unicorn.c
+)
+
+if(MSVC)
+    target_compile_options(tc32-softmmu PRIVATE
+        -DNEED_CPU_H
+        /FItc32.h
+        /I${CMAKE_CURRENT_SOURCE_DIR}/msvc/tc32-softmmu
+        /I${CMAKE_CURRENT_SOURCE_DIR}/qemu/target/tc32
+    )
+else()
+    target_compile_options(tc32-softmmu PRIVATE
+        -DNEED_CPU_H
+        -include tc32.h
+        -I${CMAKE_BINARY_DIR}/tc32-softmmu
+        -I${CMAKE_CURRENT_SOURCE_DIR}/qemu/target/tc32
+    )
+endif()
+endif()
+
+
 set(UNICORN_SRCS
     uc.c
 
@@ -1339,6 +1379,12 @@ if (UNICORN_HAS_TRICORE)
     set(UNICORN_SAMPLE_FILE ${UNICORN_SAMPLE_FILE} sample_tricore)
     target_link_libraries(tricore-softmmu unicorn-common)
     set(UNICORN_TEST_FILE ${UNICORN_TEST_FILE} test_tricore)
+endif()
+if (UNICORN_HAS_TC32)
+    set(UNICORN_COMPILE_OPTIONS ${UNICORN_COMPILE_OPTIONS} -DUNICORN_HAS_TC32)
+    set(UNICORN_LINK_LIBRARIES ${UNICORN_LINK_LIBRARIES} tc32-softmmu)
+    target_link_libraries(tc32-softmmu PRIVATE unicorn-common)
+    set(UNICORN_TEST_FILE ${UNICORN_TEST_FILE} test_tc32)
 endif()
 
 # Extra tests

@@ -36,6 +36,7 @@ typedef size_t uc_hook;
 #include "riscv.h"
 #include "s390x.h"
 #include "tricore.h"
+#include "tc32.h"
 
 #ifdef __GNUC__
 #define DEFAULT_VISIBILITY __attribute__((visibility("default")))
@@ -106,6 +107,7 @@ typedef enum uc_arch {
     UC_ARCH_RISCV,   // RISCV architecture
     UC_ARCH_S390X,   // S390X architecture
     UC_ARCH_TRICORE, // TriCore architecture
+    UC_ARCH_TC32,    // Telink TC32 architecture
     UC_ARCH_MAX,
 } uc_arch;
 
@@ -749,6 +751,15 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **uc);
 */
 UNICORN_EXPORT
 uc_err uc_close(uc_engine *uc);
+
+/* Configure a TC32 instruction-fetch alias. Instruction fetches from the
+ * guest range [alias_base, alias_base + size) are read from
+ * [source_base, source_base + size). Data loads and stores keep using the
+ * guest address space. Passing size 0 disables the alias.
+ */
+UNICORN_EXPORT
+uc_err uc_tc32_set_fetch_alias(uc_engine *uc, uint64_t alias_base,
+                               uint64_t size, uint64_t source_base);
 
 /*
  Query internal status of engine.

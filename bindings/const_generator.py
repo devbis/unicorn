@@ -6,7 +6,7 @@ import sys, re, os
 
 INCL_DIR = os.path.join('..', 'include', 'unicorn')
 
-include = [ 'arm.h', 'arm64.h', 'mips.h', 'x86.h', 'sparc.h', 'm68k.h', 'ppc.h', 'riscv.h', 's390x.h', 'tricore.h', 'unicorn.h' ]
+include = [ 'arm.h', 'arm64.h', 'mips.h', 'x86.h', 'sparc.h', 'm68k.h', 'ppc.h', 'riscv.h', 's390x.h', 'tricore.h', 'tc32.h', 'unicorn.h' ]
 
 template = {
     'python': {
@@ -25,6 +25,7 @@ template = {
             'riscv.h': 'riscv',
             's390x.h' : 's390x',
             'tricore.h' : 'tricore',
+            'tc32.h' : 'tc32',
             'unicorn.h': 'unicorn',
             'comment_open': '#',
             'comment_close': '',
@@ -45,6 +46,7 @@ template = {
             'riscv.h': 'riscv',
             's390x.h' : 's390x',
             'tricore.h' : 'tricore',
+            'tc32.h' : 'tc32',
             'unicorn.h': 'unicorn',
             'comment_open': '#',
             'comment_close': '',
@@ -65,6 +67,7 @@ template = {
             'riscv.h': 'riscv',
             's390x.h' : 's390x',
             'tricore.h' : 'tricore',
+            'tc32.h' : 'tc32',
             'unicorn.h': 'unicorn',
             'comment_open': '//',
             'comment_close': '',
@@ -85,6 +88,7 @@ template = {
             'riscv.h': 'Riscv',
             's390x.h' : 'S390x',
             'tricore.h' : 'TriCore',
+            'tc32.h' : 'TC32',
             'unicorn.h': 'Unicorn',
             'comment_open': '    //',
             'comment_close': '',
@@ -105,6 +109,7 @@ template = {
             'riscv.h': 'Riscv',
             's390x.h' : 'S390x',
             'tricore.h' : 'TriCore',
+            'tc32.h' : 'TC32',
             'unicorn.h': 'Common',
             'comment_open': '    //',
             'comment_close': '',
@@ -125,6 +130,7 @@ template = {
             'riscv.h': 'Riscv',
             's390x.h' : 'S390x',
             'tricore.h' : 'TriCore',
+            'tc32.h' : 'TC32',
             'unicorn.h': 'Unicorn',
             'comment_open': '//',
             'comment_close': '',
@@ -145,6 +151,7 @@ template = {
             'riscv.h': 'riscv',
             's390x.h' : 's390x',
             'tricore.h' : 'tricore',
+            'tc32.h' : 'tc32',
             'unicorn.h': 'unicorn',
             'comment_open': '//',
             'comment_close': '',
@@ -266,6 +273,9 @@ def gen(lang):
                     if not rhs.isdigit():
                         for k, v in previous.items():
                             rhs = re.sub(r'\b%s\b' % k, v, rhs)
+                        rhs = re.sub(
+                            r'\b(0[xX][0-9a-fA-F]+|[0-9]+)[uUlL]+\b',
+                            r'\1', rhs)
                         rhs = str(eval(rhs))
 
                     lhs_strip = re.sub(r'^UC_', '', lhs)
