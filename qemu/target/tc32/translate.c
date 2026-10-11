@@ -645,8 +645,13 @@ static void tc32_translate_16(DisasContext *ctx)
                 offset += 4;
             }
         }
-        tcg_gen_addi_i32(tcg_ctx, tcg_ctx->cpu_R[rn], tcg_ctx->cpu_R[rn],
-                         offset);
+        /* TC32 lets a loaded value in the base register win over writeback.
+         * Compilers use this for sequences such as tloadm r3!, {r0-r3},
+         * where r3 receives the fourth loaded argument. */
+        if (!is_load || !(mask & (1u << rn))) {
+            tcg_gen_addi_i32(tcg_ctx, tcg_ctx->cpu_R[rn],
+                             tcg_ctx->cpu_R[rn], offset);
+        }
         tcg_temp_free_i32(tcg_ctx, address);
         return;
     }
