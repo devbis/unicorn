@@ -38,7 +38,10 @@ static void gen_read_reg(DisasContext *ctx, TCGv_i32 dst, unsigned reg,
 {
     TCGContext *tcg_ctx = ctx->uc->tcg_ctx;
     if ((reg & 15u) == 15u) {
-        tcg_gen_movi_i32(tcg_ctx, dst, (pc + 4) & ~1u);
+        // PC reads in high-register data-processing forms are word-aligned.
+        // This is observable in the canonical tadd pc + indexed jump-table
+        // sequence, where the dispatch can start at a halfword address.
+        tcg_gen_movi_i32(tcg_ctx, dst, (pc + 4) & ~3u);
     } else {
         tcg_gen_mov_i32(tcg_ctx, dst, tcg_ctx->cpu_R[reg & 15u]);
     }
