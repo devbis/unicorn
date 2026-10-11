@@ -108,7 +108,7 @@ static void sys_cache_info(int *isize, int *dsize)
  * Architecture (+ OS) specific detection mechanisms.
  */
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) && !defined(__APPLE__)
 
 static void arch_cache_info(int *isize, int *dsize)
 {
@@ -117,8 +117,8 @@ static void arch_cache_info(int *isize, int *dsize)
 
         /* The real cache geometry is in CCSIDR_EL1/CLIDR_EL1/CSSELR_EL1,
            but (at least under Linux) these are marked protected by the
-           kernel.  However, CTR_EL0 contains the minimum linesize in the
-           entire hierarchy, and is used by userspace cache flushing.  */
+           kernel. However, CTR_EL0 contains the minimum linesize in the
+           entire hierarchy, and is used by userspace cache flushing. */
         asm volatile("mrs\t%0, ctr_el0" : "=r"(ctr));
         if (*isize == 0) {
             *isize = 4 << (ctr & 0xf);
@@ -128,6 +128,14 @@ static void arch_cache_info(int *isize, int *dsize)
         }
     }
 }
+
+#elif defined(__aarch64__) && defined(__APPLE__)
+/*
+ * Darwin provides the cache line size through hw.cachelinesize above. If that
+ * query is unavailable (for example, under a restricted runner), use the
+ * fallback size rather than executing CTR_EL0 from user space.
+ */
+static void arch_cache_info(int *isize, int *dsize) { }
 
 #elif defined(_ARCH_PPC) && defined(__linux__)
 # include "elf.h"
