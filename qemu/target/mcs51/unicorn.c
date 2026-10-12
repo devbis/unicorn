@@ -24,6 +24,7 @@ static void mcs51_reg_reset(struct uc_struct *uc)
     MCS51CPUState *env = uc->cpu->env_ptr;
     env->pc = 0;
     env->cycles = 0;
+    env->instructions = 0;
     env->interrupt_vector = 0;
     env->interrupt_in_service = 0;
 }
@@ -109,6 +110,10 @@ uc_err reg_read(void *opaque, int mode, unsigned int regid, void *value,
         CHECK_REG_TYPE(uint16_t);
         *(uint16_t *)value = env->interrupt_vector;
         return UC_ERR_OK;
+    case UC_MCS51_REG_INSTRUCTIONS:
+        CHECK_REG_TYPE(uint64_t);
+        *(uint64_t *)value = env->instructions;
+        return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);
         return ret;
@@ -174,6 +179,10 @@ uc_err reg_write(void *opaque, int mode, unsigned int regid,
     case UC_MCS51_REG_IRQ_VECTOR:
         CHECK_REG_TYPE(uint16_t);
         env->interrupt_vector = *(const uint16_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INSTRUCTIONS:
+        CHECK_REG_TYPE(uint64_t);
+        env->instructions = *(const uint64_t *)value;
         return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);

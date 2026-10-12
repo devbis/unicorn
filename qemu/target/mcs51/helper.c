@@ -271,6 +271,8 @@ void helper_uc_mcs51_step(MCS51CPUState *env)
     unsigned cycles = 1;
     bool take;
 
+    env->instructions++;
+
     /* Timer 0 uses the standard 8051 vector at 0x000b. */
     if (!env->interrupt_in_service &&
         (direct_read(env, SFR_IE) & 0x82u) == 0x82u &&
