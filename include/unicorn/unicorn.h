@@ -37,6 +37,7 @@ typedef size_t uc_hook;
 #include "s390x.h"
 #include "tricore.h"
 #include "tc32.h"
+#include "mcs51.h"
 
 #ifdef __GNUC__
 #define DEFAULT_VISIBILITY __attribute__((visibility("default")))
@@ -108,6 +109,7 @@ typedef enum uc_arch {
     UC_ARCH_S390X,   // S390X architecture
     UC_ARCH_TRICORE, // TriCore architecture
     UC_ARCH_TC32,    // Telink TC32 architecture
+    UC_ARCH_MCS51,   // MCS-51 (8051) architecture
     UC_ARCH_MAX,
 } uc_arch;
 

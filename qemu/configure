@@ -871,7 +871,7 @@ default_target_list="aarch64-softmmu \
     arm-softmmu m68k-softmmu mips64el-softmmu mips64-softmmu mipsel-softmmu \
     mips-softmmu ppc64-softmmu ppc-softmmu sparc64-softmmu sparc-softmmu \
     x86_64-softmmu riscv32-softmmu riscv64-softmmu s390x-softmmu \
-    tricore-softmmu tc32-softmmu"
+    tricore-softmmu tc32-softmmu mcs51-softmmu"
 
 if test x"$show_help" = x"yes" ; then
 cat << EOF
@@ -2778,6 +2778,10 @@ case "$target_name" in
   tc32)
     TARGET_ARCH=tc32
     TARGET_BASE_ARCH=tc32
+  ;;
+  mcs51)
+    TARGET_ARCH=mcs51
+    TARGET_BASE_ARCH=mcs51
   ;;
   unicore32)
   ;;

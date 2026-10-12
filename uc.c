@@ -27,6 +27,7 @@
 #include "qemu/target/s390x/unicorn.h"
 #include "qemu/target/tricore/unicorn.h"
 #include "qemu/target/tc32/unicorn.h"
+#include "qemu/target/mcs51/unicorn.h"
 
 #include "qemu/include/tcg/tcg-apple-jit.h"
 #include "qemu/include/qemu/queue.h"
@@ -241,6 +242,10 @@ bool uc_arch_supported(uc_arch arch)
 #endif
 #ifdef UNICORN_HAS_TC32
     case UC_ARCH_TC32:
+        return true;
+#endif
+#ifdef UNICORN_HAS_MCS51
+    case UC_ARCH_MCS51:
         return true;
 #endif
     /* Invalid or disabled arch */
@@ -487,6 +492,15 @@ uc_err uc_open(uc_arch arch, uc_mode mode, uc_engine **result)
                 return UC_ERR_MODE;
             }
             uc->init_arch = uc_init_tc32;
+            break;
+#endif
+#ifdef UNICORN_HAS_MCS51
+        case UC_ARCH_MCS51:
+            if (mode != UC_MODE_LITTLE_ENDIAN) {
+                free(uc);
+                return UC_ERR_MODE;
+            }
+            uc->init_arch = uc_init_mcs51;
             break;
 #endif
         }
@@ -1203,6 +1217,13 @@ uc_err uc_emu_start(uc_engine *uc, uint64_t begin, uint64_t until,
     case UC_ARCH_TC32:
         uc_reg_write(uc, UC_TC32_REG_PC, &begin_pc32);
         break;
+#endif
+#ifdef UNICORN_HAS_MCS51
+    case UC_ARCH_MCS51: {
+        uint16_t begin_pc16 = (uint16_t)begin;
+        uc_reg_write(uc, UC_MCS51_REG_PC, &begin_pc16);
+        break;
+    }
 #endif
     }
     uc->skip_sync_pc_on_exit = false;
@@ -2452,6 +2473,12 @@ static context_reg_rw_t find_context_reg_rw(uc_arch arch, uc_mode mode)
     case UC_ARCH_TC32:
         rw.read = reg_read_tc32;
         rw.write = reg_write_tc32;
+        break;
+#endif
+#ifdef UNICORN_HAS_MCS51
+    case UC_ARCH_MCS51:
+        rw.read = reg_read_mcs51;
+        rw.write = reg_write_mcs51;
         break;
 #endif
     }
