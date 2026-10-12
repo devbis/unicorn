@@ -33,6 +33,7 @@ typedef enum uc_mcs51_reg {
     UC_MCS51_REG_R7,
     UC_MCS51_REG_PC,
     UC_MCS51_REG_CYCLES,
+    UC_MCS51_REG_IRQ_VECTOR,
     UC_MCS51_REG_ENDING,
 } uc_mcs51_reg;
 

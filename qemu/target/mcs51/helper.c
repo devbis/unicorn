@@ -271,7 +271,7 @@ void helper_uc_mcs51_step(MCS51CPUState *env)
     unsigned cycles = 1;
     bool take;
 
-    /* Timer 0 is interrupt source 1, with the standard 8051 vector at 0x000b. */
+    /* Timer 0 uses the standard 8051 vector at 0x000b. */
     if (!env->interrupt_in_service &&
         (direct_read(env, SFR_IE) & 0x82u) == 0x82u &&
         (direct_read(env, SFR_TCON) & 0x20u) != 0) {
@@ -280,6 +280,17 @@ void helper_uc_mcs51_step(MCS51CPUState *env)
                      (uint8_t)(direct_read(env, SFR_TCON) & ~0x20u));
         env->interrupt_in_service = 1;
         env->pc = 0x000bu;
+        env->cycles += 2;
+        return;
+    }
+
+    /* SoC models can request their part-specific interrupt vector. */
+    if (!env->interrupt_in_service && env->interrupt_vector != 0) {
+        uint16_t vector = env->interrupt_vector;
+        env->interrupt_vector = 0;
+        push_return_pc(env, instruction_pc);
+        env->interrupt_in_service = 1;
+        env->pc = vector;
         env->cycles += 2;
         return;
     }
