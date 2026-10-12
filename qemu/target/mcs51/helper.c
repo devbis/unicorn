@@ -12,6 +12,8 @@
 #define SFR_DPL 0x82
 #define SFR_DPH 0x83
 #define SFR_P2 0xa0
+#define SFR_TCON 0x88
+#define SFR_IE 0xa8
 
 static uint8_t code_read(MCS51CPUState *env, uint16_t addr)
 {
@@ -269,6 +271,19 @@ void helper_uc_mcs51_step(MCS51CPUState *env)
     unsigned cycles = 1;
     bool take;
 
+    /* Timer 0 is interrupt source 1, with the standard 8051 vector at 0x000b. */
+    if (!env->interrupt_in_service &&
+        (direct_read(env, SFR_IE) & 0x82u) == 0x82u &&
+        (direct_read(env, SFR_TCON) & 0x20u) != 0) {
+        push_return_pc(env, instruction_pc);
+        direct_write(env, SFR_TCON,
+                     (uint8_t)(direct_read(env, SFR_TCON) & ~0x20u));
+        env->interrupt_in_service = 1;
+        env->pc = 0x000bu;
+        env->cycles += 2;
+        return;
+    }
+
     /* AJMP and ACALL encode the upper three target bits in the opcode. */
     if ((opcode & 0x1fu) == 0x01u) {
         uint8_t low = fetch8(env, &pc);
@@ -415,6 +430,7 @@ void helper_uc_mcs51_step(MCS51CPUState *env)
             value = stack_pop(env);
             address = stack_pop(env);
             pc = (uint16_t)(((uint16_t)value << 8) | address);
+            env->interrupt_in_service = 0;
             cycles = 2;
             break;
         case 0x33: /* RLC A */

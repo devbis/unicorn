@@ -7,6 +7,7 @@
 typedef struct MCS51CPUState {
     uint32_t pc;
     uint64_t cycles;
+    uint8_t interrupt_in_service;
     int end_reset_fields;
     struct uc_struct *uc;
 } MCS51CPUState;

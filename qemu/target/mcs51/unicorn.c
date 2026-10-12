@@ -24,6 +24,7 @@ static void mcs51_reg_reset(struct uc_struct *uc)
     MCS51CPUState *env = uc->cpu->env_ptr;
     env->pc = 0;
     env->cycles = 0;
+    env->interrupt_in_service = 0;
 }
 
 static uint8_t sfr_read(MCS51CPUState *env, uint8_t address)
