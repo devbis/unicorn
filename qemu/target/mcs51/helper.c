@@ -569,14 +569,17 @@ void helper_uc_mcs51_step(MCS51CPUState *env)
             carry_write(env, !carry_read(env));
             break;
         case 0xb4: case 0xb5: case 0xb6: case 0xb7: /* CJNE A/direct/@Ri */
-            if (opcode == 0xb4)
+            if (opcode == 0xb4) {
+                a = acc_read(env);
                 operand = fetch8(env, &pc);
-            else if (opcode == 0xb5)
+            } else if (opcode == 0xb5) {
+                a = acc_read(env);
                 operand = direct_read(env, fetch8(env, &pc));
-            else
-                operand = indirect_read(env, reg_read(env, opcode & 1u));
+            } else {
+                a = indirect_read(env, reg_read(env, opcode & 1u));
+                operand = fetch8(env, &pc);
+            }
             rel = fetch8(env, &pc);
-            a = acc_read(env);
             carry_write(env, a < operand);
             if (a != operand)
                 pc = (uint16_t)(pc + (int8_t)rel);
