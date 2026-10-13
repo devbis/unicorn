@@ -1,4 +1,5 @@
 #include "qemu/osdep.h"
+#include "qemu/host-utils.h"
 #include "cpu.h"
 #include "uc_priv.h"
 #include "exec/exec-all.h"
@@ -165,8 +166,12 @@ static void set_parity(MCS51CPUState *env)
 {
     uint8_t psw = direct_read(env, SFR_PSW);
     uint8_t acc = acc_read(env);
-    psw = (uint8_t)((psw & ~UC_MCS51_FLAG_P) |
-                    (__builtin_parity((unsigned)acc) ? UC_MCS51_FLAG_P : 0));
+#ifdef _MSC_VER
+    const int odd = ctpop8(acc) & 1;
+#else
+    const int odd = __builtin_parity((unsigned)acc);
+#endif
+    psw = (uint8_t)((psw & ~UC_MCS51_FLAG_P) | (odd ? UC_MCS51_FLAG_P : 0));
     direct_write(env, SFR_PSW, psw);
 }
 
