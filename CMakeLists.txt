@@ -604,6 +604,7 @@ add_library(arm-softmmu STATIC
     qemu/target/arm/helper.c
     qemu/target/arm/iwmmxt_helper.c
     qemu/target/arm/m_helper.c
+    qemu/target/arm/nvic.c
     qemu/target/arm/neon_helper.c
     qemu/target/arm/op_helper.c
     qemu/target/arm/psci.c
@@ -648,6 +649,7 @@ add_library(aarch64-softmmu STATIC
     qemu/target/arm/helper.c
     qemu/target/arm/iwmmxt_helper.c
     qemu/target/arm/m_helper.c
+    qemu/target/arm/nvic.c
     qemu/target/arm/neon_helper.c
     qemu/target/arm/op_helper.c
     qemu/target/arm/pauth_helper.c

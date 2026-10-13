@@ -3120,3 +3120,14 @@ void trace_end(uc_tracer *tracer, trace_loc loc, const char *fmt, ...)
             (double)(end - tracer->starts[loc]) / (double)(1000));
 }
 #endif
+
+UNICORN_EXPORT
+uc_err uc_arm_nvic(uc_engine *uc, uc_arm_nvic_op op, uint32_t arg,
+                   uint32_t *value, unsigned size)
+{
+    UC_INIT(uc);
+    if (!uc->arm_nvic) {
+        return UC_ERR_ARG;
+    }
+    return uc->arm_nvic(uc, (int)op, arg, value, size);
+}

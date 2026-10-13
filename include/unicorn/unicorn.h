@@ -791,6 +791,14 @@ UNICORN_EXPORT
 uc_err uc_ctl(uc_engine *uc, uc_control_type control, ...);
 
 /*
+ Cortex-M NVIC and System Control Space access (UC_ARCH_ARM with UC_MODE_MCLASS).
+ See uc_arm_nvic_op in arm.h. Returns UC_ERR_ARG for other CPUs.
+*/
+UNICORN_EXPORT
+uc_err uc_arm_nvic(uc_engine *uc, uc_arm_nvic_op op, uint32_t arg,
+                   uint32_t *value, unsigned size);
+
+/*
  Report the last error number when some API function fails.
  Like glibc's errno, uc_errno might not retain its old value once accessed.
 

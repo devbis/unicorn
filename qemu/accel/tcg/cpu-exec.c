@@ -341,6 +341,17 @@ static inline bool cpu_handle_exception(CPUState *cpu, int *ret)
 
     // printf(">> exception index = %u\n", cpu->exception_index); qq
 
+    // Cortex-M: SVC, faults and exception return are the guest's own business.
+    if (cpu->exception_index >= 0 && cpu->exception_index < EXCP_INTERRUPT &&
+        uc->guest_exception && uc->guest_exception(uc, cpu->exception_index)) {
+        CPUClass *cc = CPU_GET_CLASS(cpu);
+
+        cc->do_interrupt(cpu);
+        cpu->exception_index = -1;
+        *ret = EXCP_INTERRUPT;
+        return false;
+    }
+
     if (cpu->uc->stop_interrupt && cpu->uc->stop_interrupt(cpu->uc, cpu->exception_index)) {
         // Unicorn: call registered invalid instruction callbacks
         catched = false;

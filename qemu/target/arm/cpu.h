@@ -2215,6 +2215,19 @@ int armv7m_nvic_raw_execution_priority(void *opaque);
  */
 bool armv7m_nvic_neg_prio_requested(void *opaque, bool secure);
 
+/* Unicorn's self-contained NVIC and System Control Space (nvic.c). */
+typedef struct NVICState NVICState;
+NVICState *armv7m_nvic_new(ARMCPU *cpu);
+void armv7m_nvic_free(NVICState *s);
+void armv7m_nvic_reset(NVICState *s);
+void armv7m_nvic_config(NVICState *s, int num_irq, int prio_bits);
+void armv7m_nvic_set_irq(NVICState *s, int exception, bool level);
+uint32_t armv7m_scs_read(NVICState *s, uint32_t offset);
+void armv7m_scs_write(NVICState *s, uint32_t offset, uint32_t value,
+                      unsigned size);
+bool armv7m_nvic_take_reset_request(NVICState *s);
+bool armv7m_nvic_has_pending(NVICState *s);
+
 /* Interface for defining coprocessor registers.
  * Registers are defined in tables of arm_cp_reginfo structs
  * which are passed to define_arm_cp_regs().

@@ -324,6 +324,13 @@ struct uc_struct {
 
     uc_insn_hook_validate insn_hook_validate;
     uc_opcode_hook_validate_t opcode_hook_invalidate;
+    // Returns true when the CPU model takes exception `intno` itself (Cortex-M
+    // exception entry/exit through the NVIC) instead of reporting it to
+    // UC_HOOK_INTR. Optional.
+    bool (*guest_exception)(struct uc_struct *uc, int intno);
+    // Cortex-M NVIC access (arm only); see uc_arm_nvic().
+    uc_err (*arm_nvic)(struct uc_struct *uc, int op, uint32_t arg,
+                       uint32_t *value, unsigned size);
 
     MemoryRegion *system_memory;    // qemu/exec.c
     MemoryRegion *system_io;        // qemu/exec.c

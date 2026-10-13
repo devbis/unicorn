@@ -28,6 +28,78 @@ static uint64_t arm_get_pc(struct uc_struct *uc)
            ((CPUARMState *)uc->cpu->env_ptr)->thumb;
 }
 
+static bool arm_guest_exception(struct uc_struct *uc, int intno)
+{
+    if (!(uc->mode & UC_MODE_MCLASS)) {
+        return false;
+    }
+    switch (intno) {
+    case EXCP_UDEF:
+    case EXCP_NOCP:
+    case EXCP_INVSTATE:
+    case EXCP_STKOF:
+    case EXCP_LSERR:
+    case EXCP_UNALIGNED:
+    case EXCP_SWI:
+    case EXCP_PREFETCH_ABORT:
+    case EXCP_DATA_ABORT:
+    case EXCP_EXCEPTION_EXIT:
+    case EXCP_LAZYFP:
+        return true;
+    default: /* BKPT, semihosting, WFI/WFE yield: the host decides */
+        return false;
+    }
+}
+
+static uc_err arm_nvic_access(struct uc_struct *uc, int op, uint32_t arg,
+                              uint32_t *value, unsigned size)
+{
+    ARMCPU *cpu = (ARMCPU *)uc->cpu;
+    NVICState *nvic = cpu->env.nvic;
+
+    if (!nvic) {
+        return UC_ERR_ARG; /* not an M-profile CPU */
+    }
+    switch (op) {
+    case UC_ARM_NVIC_CONFIG:
+        armv7m_nvic_config(nvic, (int)arg, value ? (int)*value : 3);
+        break;
+    case UC_ARM_NVIC_RESET:
+        armv7m_nvic_reset(nvic);
+        break;
+    case UC_ARM_NVIC_SET_IRQ:
+        armv7m_nvic_set_irq(nvic, (int)arg, value && *value);
+        break;
+    case UC_ARM_NVIC_SCS_READ:
+        if (!value) {
+            return UC_ERR_ARG;
+        }
+        *value = armv7m_scs_read(nvic, arg);
+        break;
+    case UC_ARM_NVIC_SCS_WRITE:
+        if (!value) {
+            return UC_ERR_ARG;
+        }
+        armv7m_scs_write(nvic, arg, *value, size ? size : 4);
+        break;
+    case UC_ARM_NVIC_TAKE_RESET:
+        if (!value) {
+            return UC_ERR_ARG;
+        }
+        *value = armv7m_nvic_take_reset_request(nvic);
+        break;
+    case UC_ARM_NVIC_PENDING:
+        if (!value) {
+            return UC_ERR_ARG;
+        }
+        *value = armv7m_nvic_has_pending(nvic);
+        break;
+    default:
+        return UC_ERR_ARG;
+    }
+    return UC_ERR_OK;
+}
+
 static void arm_release(void *ctx)
 {
     int i;
@@ -41,6 +113,10 @@ static void arm_release(void *ctx)
     CPUARMState *env = &cpu->env;
     uint32_t nr;
 
+    if (env->nvic) {
+        armv7m_nvic_free(env->nvic);
+        env->nvic = NULL;
+    }
     release_common(ctx);
     for (i = 0; i < NB_MMU_MODES; i++) {
         desc = &(d[i]);
@@ -780,6 +856,8 @@ void uc_init(struct uc_struct *uc)
     uc->get_pc = arm_get_pc;
     uc->stop_interrupt = arm_stop_interrupt;
     uc->release = arm_release;
+    uc->arm_nvic = arm_nvic_access;
+    uc->guest_exception = arm_guest_exception;
     uc->query = arm_query;
     uc->cpus_init = arm_cpus_init;
     uc->opcode_hook_invalidate = arm_opcode_hook_invalidate;

@@ -206,6 +206,10 @@ static void arm_cpu_reset(CPUState *dev)
         // uint8_t *rom;
         uint32_t vecbase;
 
+        if (env->nvic) {
+            armv7m_nvic_reset(env->nvic);
+        }
+
         if (arm_feature(env, ARM_FEATURE_M_SECURITY)) {
             env->v7m.secure = true;
         } else {
@@ -533,8 +537,8 @@ bool arm_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 static bool arm_v7m_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
 {
     CPUClass *cc = CPU_GET_CLASS(cs);
-    // ARMCPU *cpu = ARM_CPU(cs);
-    // CPUARMState *env = &cpu->env;
+    ARMCPU *cpu = ARM_CPU(cs);
+    CPUARMState *env = &cpu->env;
     bool ret = false;
 
     /* ARMv7-M interrupt masking works differently than -A or -R.
@@ -544,8 +548,8 @@ static bool arm_v7m_cpu_exec_interrupt(CPUState *cs, int interrupt_request)
      * (which depends on state like BASEPRI, FAULTMASK and the
      * currently active exception).
      */
-    if (interrupt_request & CPU_INTERRUPT_HARD) {
-        // && (armv7m_nvic_can_take_pending_exception(env->nvic))) {
+    if ((interrupt_request & CPU_INTERRUPT_HARD)
+        && (armv7m_nvic_can_take_pending_exception(env->nvic))) {
         cs->exception_index = EXCP_IRQ;
         cc->do_interrupt(cs);
         ret = true;
@@ -785,6 +789,10 @@ void arm_cpu_realizefn(struct uc_struct *uc, CPUState *dev)
 #endif
 
     cpu_exec_realizefn(cs);
+
+    if (arm_feature(env, ARM_FEATURE_M) && !env->nvic) {
+        env->nvic = armv7m_nvic_new(cpu);
+    }
 
     arm_cpu_finalize_features(cpu);
 
@@ -2111,7 +2119,11 @@ ARMCPU *cpu_arm_init(struct uc_struct *uc)
 
 #if !defined(TARGET_AARCH64)
     if (uc->mode & UC_MODE_MCLASS) {
-        uc->cpu_model = UC_CPU_ARM_CORTEX_M33;
+        /* Cortex-M33 unless the host picked an M-profile model. */
+        if (uc->cpu_model < UC_CPU_ARM_CORTEX_M0 ||
+            uc->cpu_model > UC_CPU_ARM_CORTEX_M33) {
+            uc->cpu_model = UC_CPU_ARM_CORTEX_M33;
+        }
     } else if (uc->mode & UC_MODE_ARM926) {
         uc->cpu_model = UC_CPU_ARM_926;
     } else if (uc->mode & UC_MODE_ARM946) {

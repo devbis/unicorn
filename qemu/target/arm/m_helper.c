@@ -88,8 +88,8 @@ static bool v7m_stack_write(ARMCPU *cpu, uint32_t addr, uint32_t value,
     int prot;
     ARMMMUFaultInfo fi = { 0 };
     bool secure = mmu_idx & ARM_MMU_IDX_M_S;
-    // int exc;
-    // bool exc_secure;
+    int exc;
+    bool exc_secure;
 
     if (get_phys_addr(env, addr, MMU_DATA_STORE, mmu_idx, &physaddr,
                       &attrs, &prot, &page_size, &fi, NULL)) {
@@ -108,8 +108,8 @@ static bool v7m_stack_write(ARMCPU *cpu, uint32_t addr, uint32_t value,
             }
             env->v7m.sfsr |= R_V7M_SFSR_SFARVALID_MASK;
             env->v7m.sfar = addr;
-            // exc = ARMV7M_EXCP_SECURE;
-            // exc_secure = false;
+            exc = ARMV7M_EXCP_SECURE;
+            exc_secure = false;
         } else {
             if (mode == STACK_LAZYFP) {
                 qemu_log_mask(CPU_LOG_INT,
@@ -120,8 +120,8 @@ static bool v7m_stack_write(ARMCPU *cpu, uint32_t addr, uint32_t value,
                               "...MemManageFault with CFSR.MSTKERR\n");
                 env->v7m.cfsr[secure] |= R_V7M_CFSR_MSTKERR_MASK;
             }
-            // exc = ARMV7M_EXCP_MEM;
-            // exc_secure = secure;
+            exc = ARMV7M_EXCP_MEM;
+            exc_secure = secure;
         }
         goto pend_fault;
     }
@@ -140,8 +140,8 @@ static bool v7m_stack_write(ARMCPU *cpu, uint32_t addr, uint32_t value,
             qemu_log_mask(CPU_LOG_INT, "...BusFault with BFSR.STKERR\n");
             env->v7m.cfsr[M_REG_NS] |= R_V7M_CFSR_STKERR_MASK;
         }
-        // exc = ARMV7M_EXCP_BUS;
-        // exc_secure = false;
+        exc = ARMV7M_EXCP_BUS;
+        exc_secure = false;
         goto pend_fault;
     }
     return true;
@@ -161,19 +161,15 @@ pend_fault:
      */
     switch (mode) {
     case STACK_NORMAL:
-        // armv7m_nvic_set_pending_derived(env->nvic, exc, exc_secure);
+        armv7m_nvic_set_pending_derived(env->nvic, exc, exc_secure);
         break;
     case STACK_LAZYFP:
-        // armv7m_nvic_set_pending_lazyfp(env->nvic, exc, exc_secure);
+        armv7m_nvic_set_pending_lazyfp(env->nvic, exc, exc_secure);
         break;
     case STACK_IGNFAULTS:
         break;
     }
     return false;
-}
-
-void armv7m_nvic_set_pending(void *opaque, int irq, bool secure)
-{
 }
 
 static bool v7m_stack_read(ARMCPU *cpu, uint32_t *dest, uint32_t addr,
@@ -565,7 +561,6 @@ static uint32_t *get_v7m_sp_ptr(CPUARMState *env, bool secure, bool threadmode,
     }
 }
 
-#if 0
 static bool arm_v7m_load_vector(ARMCPU *cpu, int exc, bool targets_secure,
                                 uint32_t *pvec)
 {
@@ -576,7 +571,7 @@ static bool arm_v7m_load_vector(ARMCPU *cpu, int exc, bool targets_secure,
     uint32_t vector_entry;
     MemTxAttrs attrs = { 0 };
     ARMMMUIdx mmu_idx;
-    // bool exc_secure;
+    bool exc_secure;
 
     mmu_idx = arm_v7m_mmu_idx_for_secstate_and_priv(env, targets_secure, true);
 
@@ -602,7 +597,7 @@ static bool arm_v7m_load_vector(ARMCPU *cpu, int exc, bool targets_secure,
              * NS access to S memory: the underlying exception which we escalate
              * to HardFault is SecureFault, which always targets Secure.
              */
-            // exc_secure = true;
+            exc_secure = true;
             goto load_fail;
         }
     }
@@ -618,7 +613,7 @@ static bool arm_v7m_load_vector(ARMCPU *cpu, int exc, bool targets_secure,
          * Underlying exception is BusFault: its target security state
          * depends on BFHFNMINS.
          */
-        // exc_secure = !(cpu->env.v7m.aircr & R_V7M_AIRCR_BFHFNMINS_MASK);
+        exc_secure = !(cpu->env.v7m.aircr & R_V7M_AIRCR_BFHFNMINS_MASK);
         goto load_fail;
     }
     *pvec = vector_entry;
@@ -637,13 +632,12 @@ load_fail:
      * underlying exception.
      */
     if (!(cpu->env.v7m.aircr & R_V7M_AIRCR_BFHFNMINS_MASK)) {
-        // exc_secure = true;
+        exc_secure = true;
     }
     env->v7m.hfsr |= R_V7M_HFSR_VECTTBL_MASK | R_V7M_HFSR_FORCED_MASK;
-    // armv7m_nvic_set_pending_derived(env->nvic, ARMV7M_EXCP_HARD, exc_secure);
+    armv7m_nvic_set_pending_derived(env->nvic, ARMV7M_EXCP_HARD, exc_secure);
     return false;
 }
-#endif
 
 static uint32_t v7m_integrity_sig(CPUARMState *env, uint32_t lr)
 {
@@ -661,7 +655,6 @@ static uint32_t v7m_integrity_sig(CPUARMState *env, uint32_t lr)
     return sig;
 }
 
-#if 0
 static bool v7m_push_callee_stack(ARMCPU *cpu, uint32_t lr, bool dotailchain,
                                   bool ignore_faults)
 {
@@ -738,13 +731,10 @@ static bool v7m_push_callee_stack(ARMCPU *cpu, uint32_t lr, bool dotailchain,
 
     return !stacked_ok;
 }
-#endif
 
 static void v7m_exception_taken(ARMCPU *cpu, uint32_t lr, bool dotailchain,
                                 bool ignore_stackfaults)
 {
-    return; // FIXME
-#if 0
     /*
      * Do the "take the exception" parts of exception entry,
      * but not the pushing of state to the stack. This is
@@ -879,12 +869,6 @@ static void v7m_exception_taken(ARMCPU *cpu, uint32_t lr, bool dotailchain,
     env->regs[15] = addr & 0xfffffffe;
     env->thumb = addr & 1;
     arm_rebuild_hflags(env);
-#endif
-}
-
-bool armv7m_nvic_neg_prio_requested(void *opaque, bool secure)
-{
-    return false;
 }
 
 static void v7m_update_fpccr(CPUARMState *env, uint32_t frameptr,
@@ -1183,8 +1167,8 @@ static bool v7m_push_stack(ARMCPU *cpu)
             armv7m_nvic_set_pending(env->nvic, ARMV7M_EXCP_USAGE, M_REG_S);
             env->v7m.cfsr[M_REG_S] |= R_V7M_CFSR_NOCP_MASK;
         } else {
-            if (!(env->v7m.fpccr[M_REG_S] & R_V7M_FPCCR_LSPEN_MASK)) {
-                /* Lazy stacking disabled, save registers now */
+            if (true) {
+                /* Unicorn: lazy FP stacking is not modelled, always save now */
                 int i;
                 bool cpacr_pass = v7m_cpacr_pass(env, env->v7m.secure,
                                                  arm_current_el(env) != 0);
@@ -1249,7 +1233,6 @@ static bool v7m_push_stack(ARMCPU *cpu)
 
 static void do_v7m_exception_exit(ARMCPU *cpu)
 {
-    return; // FIXME
     CPUARMState *env = &cpu->env;
     uint32_t excret;
     uint32_t xpsr, xpsr_mask;
@@ -1261,7 +1244,7 @@ static void do_v7m_exception_exit(ARMCPU *cpu)
     bool exc_secure = false;
     bool return_to_secure;
     bool ftype;
-    bool restore_s16_s31;
+    bool restore_s16_s31 = false;
 
     /*
      * If we're not in Handler mode then jumps to magic exception-exit
@@ -1343,7 +1326,6 @@ static void do_v7m_exception_exit(ARMCPU *cpu)
         }
     }
 
-#if 0
     switch (armv7m_nvic_complete_irq(env->nvic, env->v7m.exception,
                                      exc_secure)) {
     case -1:
@@ -1364,7 +1346,6 @@ static void do_v7m_exception_exit(ARMCPU *cpu)
     default:
         g_assert_not_reached();
     }
-#endif
 
     return_to_handler = !(excret & R_V7M_EXCRET_MODE_MASK);
     return_to_sp_process = excret & R_V7M_EXCRET_SPSEL_MASK;
@@ -1474,11 +1455,11 @@ static void do_v7m_exception_exit(ARMCPU *cpu)
      * returning to -- none of the state we would unstack or set based on
      * the EXCRET value affects it.
      */
-    // if (armv7m_nvic_can_take_pending_exception(env->nvic)) {
-    //     qemu_log_mask(CPU_LOG_INT, "...tailchaining to pending exception\n");
-    //     v7m_exception_taken(cpu, excret, true, false);
-    //     return;
-    // }
+    if (armv7m_nvic_can_take_pending_exception(env->nvic)) {
+        qemu_log_mask(CPU_LOG_INT, "...tailchaining to pending exception\n");
+        v7m_exception_taken(cpu, excret, true, false);
+        return;
+    }
 
     switch_v7m_security_state(env, return_to_secure);
 

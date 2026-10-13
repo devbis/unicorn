@@ -228,6 +228,19 @@ typedef enum uc_arm_reg {
     UC_ARM_REG_IP = UC_ARM_REG_R12,
 } uc_arm_reg;
 
+// Cortex-M (UC_MODE_MCLASS) NVIC and System Control Space. The engine has no
+// bus, so the host maps 0xE000E000 itself (uc_mmio_map) and forwards accesses
+// here; SysTick (0xE000E010..) and timing stay with the host.
+typedef enum uc_arm_nvic_op {
+    UC_ARM_NVIC_CONFIG,     // arg = number of external IRQs, *value = priority bits
+    UC_ARM_NVIC_RESET,      // clear all NVIC state
+    UC_ARM_NVIC_SET_IRQ,    // arg = exception number (16 + IRQ), *value = line level
+    UC_ARM_NVIC_SCS_READ,   // arg = offset from 0xE000E000, *value = result
+    UC_ARM_NVIC_SCS_WRITE,  // arg = offset, *value = data, size = 1, 2 or 4
+    UC_ARM_NVIC_TAKE_RESET, // *value = 1 if AIRCR.SYSRESETREQ was written (cleared)
+    UC_ARM_NVIC_PENDING,    // *value = 1 if an exception is pending and enabled
+} uc_arm_nvic_op;
+
 #ifdef __cplusplus
 }
 #endif
