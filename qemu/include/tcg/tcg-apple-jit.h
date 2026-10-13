@@ -112,12 +112,20 @@ static inline void jit_write_protect(int enabled)
     return pthread_jit_write_protect_np(enabled);
 }
 
+/*
+ * A callback only changes the JIT mode when it runs emulation itself (nested
+ * uc_emu_start), which leaves the tracked mode different; restoring on every
+ * call would cost a system call per hooked instruction.
+ */
 #define JIT_CALLBACK_GUARD(x)                       \
 {                                                   \
     bool executable = uc->current_executable;       \
     assert_executable(executable);                  \
     x;                                              \
-    jit_write_protect(executable);                  \
+    if (uc->current_executable != executable) {     \
+        jit_write_protect(executable);              \
+        uc->current_executable = executable;        \
+    }                                               \
 }                                                   \
 
 
@@ -126,7 +134,10 @@ static inline void jit_write_protect(int enabled)
     bool executable = uc->current_executable;           \
     assert_executable(executable);                      \
     var = x;                                            \
-    jit_write_protect(executable);                      \
+    if (uc->current_executable != executable) {         \
+        jit_write_protect(executable);                  \
+        uc->current_executable = executable;            \
+    }                                                   \
 }                                                       \
 
 

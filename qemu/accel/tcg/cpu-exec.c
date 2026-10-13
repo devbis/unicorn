@@ -58,10 +58,12 @@ static inline tcg_target_ulong cpu_tb_exec(CPUState *cpu, TranslationBlock *itb)
     UC_TRACE_START(UC_TRACE_TB_EXEC);
     tb_exec_lock(cpu->uc);
     ret = tcg_qemu_tb_exec(env, tb_ptr);
-    if (cpu->uc->nested_level == 1) {
-        // Only unlock (allow writing to JIT area) if we are the outmost uc_emu_start
-        tb_exec_unlock(cpu->uc);
-    }
+    /*
+     * The JIT area stays executable between translation blocks: flipping it
+     * after every block costs two system calls on Apple Silicon. Every writer
+     * (tb_gen_code, tb_add_jump, tb_flush, tb_phys_invalidate) unlocks it
+     * itself and restores the state it found; the exit paths still unlock.
+     */
     UC_TRACE_END(UC_TRACE_TB_EXEC, "[uc] exec tb 0x%" PRIx64 ": ", itb->pc);
 
     cpu->can_do_io = 1;
