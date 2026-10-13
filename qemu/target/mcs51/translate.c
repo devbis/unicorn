@@ -102,7 +102,13 @@ static void mcs51_tr_translate_insn(DisasContextBase *dcbase, CPUState *cpu)
     }
 
     ctx->base.pc_next = (pc + size) & 0xffffu;
-    gen_helper_uc_mcs51_step(tcg_ctx, tcg_ctx->cpu_env);
+    if (ctx->env->fast.idata && !HOOK_EXISTS(ctx->uc, UC_HOOK_CODE)) {
+        /* No hook wants to see each instruction: the helper runs a stretch of
+           them and stops the emulation when the host needs control. */
+        gen_helper_uc_mcs51_run(tcg_ctx, tcg_ctx->cpu_env);
+    } else {
+        gen_helper_uc_mcs51_step(tcg_ctx, tcg_ctx->cpu_env);
+    }
     /* End every TB after one instruction so PC, hooks and count limits stay
        synchronized with the dynamically executed MCS-51 instruction. */
     tcg_gen_exit_tb(tcg_ctx, NULL, 0);

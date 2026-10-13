@@ -3,6 +3,7 @@
 
 #include "cpu-qom.h"
 #include "exec/cpu-defs.h"
+#include "unicorn/mcs51.h"
 
 typedef struct MCS51CPUState {
     uint32_t pc;
@@ -12,6 +13,11 @@ typedef struct MCS51CPUState {
     uint8_t interrupt_in_service;
     int end_reset_fields;
     struct uc_struct *uc;
+    /* Host-provided fast path (see unicorn/mcs51.h); kept across resets. */
+    uc_mcs51_fast_memory fast;
+    uint64_t event_cycles;
+    uint64_t instruction_limit;
+    uint32_t break_pc;
 } MCS51CPUState;
 
 typedef MCS51CPUState CPUArchState;

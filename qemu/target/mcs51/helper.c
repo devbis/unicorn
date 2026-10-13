@@ -15,8 +15,16 @@
 #define SFR_TCON 0x88
 #define SFR_IE 0xa8
 
+/*
+ * With a fast memory table installed (UC_MCS51_REG_FAST_MEMORY) register and
+ * RAM accesses use the host arrays directly; SFRs flagged special, and every
+ * access without a table, go through the soft MMU so mapped callbacks run.
+ */
 static uint8_t code_read(MCS51CPUState *env, uint16_t addr)
 {
+    if (env->fast.code) {
+        return env->fast.code[addr];
+    }
     return cpu_ldub_code(env, addr);
 }
 
@@ -29,23 +37,48 @@ static uint8_t fetch8(MCS51CPUState *env, uint32_t *pc)
 
 static uint8_t direct_read(MCS51CPUState *env, uint8_t addr)
 {
+    if (env->fast.idata) {
+        if (addr < 0x80) {
+            return env->fast.idata[addr];
+        }
+        if (!env->fast.sfr_special_read[addr]) {
+            return env->fast.sfr[addr];
+        }
+    }
     abi_ptr space = addr < 0x80 ? UC_MCS51_IDATA_BASE : UC_MCS51_SFR_BASE;
     return cpu_ldub_data(env, space + addr);
 }
 
 static void direct_write(MCS51CPUState *env, uint8_t addr, uint8_t value)
 {
+    if (env->fast.idata) {
+        if (addr < 0x80) {
+            env->fast.idata[addr] = value;
+            return;
+        }
+        if (!env->fast.sfr_special_write[addr]) {
+            env->fast.sfr[addr] = value;
+            return;
+        }
+    }
     abi_ptr space = addr < 0x80 ? UC_MCS51_IDATA_BASE : UC_MCS51_SFR_BASE;
     cpu_stb_data(env, space + addr, value);
 }
 
 static uint8_t indirect_read(MCS51CPUState *env, uint8_t addr)
 {
+    if (env->fast.idata) {
+        return env->fast.idata[addr];
+    }
     return cpu_ldub_data(env, UC_MCS51_IDATA_BASE + addr);
 }
 
 static void indirect_write(MCS51CPUState *env, uint8_t addr, uint8_t value)
 {
+    if (env->fast.idata) {
+        env->fast.idata[addr] = value;
+        return;
+    }
     cpu_stb_data(env, UC_MCS51_IDATA_BASE + addr, value);
 }
 
@@ -256,7 +289,7 @@ void helper_uc_mcs51_exit(MCS51CPUState *env)
     cpu_loop_exit(cpu);
 }
 
-void helper_uc_mcs51_step(MCS51CPUState *env)
+static void mcs51_execute_one(MCS51CPUState *env)
 {
     uint16_t instruction_pc = (uint16_t)env->pc;
     uint32_t pc = instruction_pc;
@@ -742,4 +775,29 @@ void helper_uc_mcs51_step(MCS51CPUState *env)
     env->pc = pc & 0xffffu;
     env->cycles += cycles;
     set_parity(env);
+}
+
+void helper_uc_mcs51_step(MCS51CPUState *env)
+{
+    mcs51_execute_one(env);
+}
+
+/*
+ * Runs instructions until the host needs control (see unicorn/mcs51.h), then
+ * stops the emulation so uc_emu_start returns. The first instruction always
+ * executes, so the host can service whatever caused the previous stop.
+ */
+void helper_uc_mcs51_run(MCS51CPUState *env)
+{
+    struct uc_struct *uc = env->uc;
+
+    for (;;) {
+        mcs51_execute_one(env);
+        if (uc->stop_request || env->cycles >= env->event_cycles ||
+            env->instructions >= env->instruction_limit ||
+            (uint32_t)env->pc == env->break_pc) {
+            break;
+        }
+    }
+    uc_emu_stop((uc_engine *)uc);
 }

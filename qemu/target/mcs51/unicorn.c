@@ -27,6 +27,9 @@ static void mcs51_reg_reset(struct uc_struct *uc)
     env->instructions = 0;
     env->interrupt_vector = 0;
     env->interrupt_in_service = 0;
+    env->event_cycles = UINT64_MAX;
+    env->instruction_limit = UINT64_MAX;
+    env->break_pc = 0x10000u;
 }
 
 static uint8_t sfr_read(MCS51CPUState *env, uint8_t address)
@@ -114,6 +117,18 @@ uc_err reg_read(void *opaque, int mode, unsigned int regid, void *value,
         CHECK_REG_TYPE(uint64_t);
         *(uint64_t *)value = env->instructions;
         return UC_ERR_OK;
+    case UC_MCS51_REG_EVENT_CYCLES:
+        CHECK_REG_TYPE(uint64_t);
+        *(uint64_t *)value = env->event_cycles;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INSTRUCTION_LIMIT:
+        CHECK_REG_TYPE(uint64_t);
+        *(uint64_t *)value = env->instruction_limit;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_BREAK_PC:
+        CHECK_REG_TYPE(uint32_t);
+        *(uint32_t *)value = env->break_pc;
+        return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);
         return ret;
@@ -183,6 +198,22 @@ uc_err reg_write(void *opaque, int mode, unsigned int regid,
     case UC_MCS51_REG_INSTRUCTIONS:
         CHECK_REG_TYPE(uint64_t);
         env->instructions = *(const uint64_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_FAST_MEMORY:
+        CHECK_REG_TYPE(const uc_mcs51_fast_memory *);
+        env->fast = **(const uc_mcs51_fast_memory *const *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_EVENT_CYCLES:
+        CHECK_REG_TYPE(uint64_t);
+        env->event_cycles = *(const uint64_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INSTRUCTION_LIMIT:
+        CHECK_REG_TYPE(uint64_t);
+        env->instruction_limit = *(const uint64_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_BREAK_PC:
+        CHECK_REG_TYPE(uint32_t);
+        env->break_pc = *(const uint32_t *)value;
         return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);
