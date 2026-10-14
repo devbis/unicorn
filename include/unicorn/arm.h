@@ -239,6 +239,7 @@ typedef enum uc_arm_nvic_op {
     UC_ARM_NVIC_SCS_WRITE,  // arg = offset, *value = data, size = 1, 2 or 4
     UC_ARM_NVIC_TAKE_RESET, // *value = 1 if AIRCR.SYSRESETREQ was written (cleared)
     UC_ARM_NVIC_PENDING,    // *value = 1 if an exception is pending and enabled
+    UC_ARM_NVIC_NO_SECURITY, // Cortex-M33: drop the Security Extension (one state, no SAU); call before the first reset
 } uc_arm_nvic_op;
 
 #ifdef __cplusplus

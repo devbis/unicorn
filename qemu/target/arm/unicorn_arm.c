@@ -94,6 +94,17 @@ static uc_err arm_nvic_access(struct uc_struct *uc, int op, uint32_t arg,
         }
         *value = armv7m_nvic_has_pending(nvic);
         break;
+    case UC_ARM_NVIC_NO_SECURITY:
+        /* The nvic models one security state (the non-secure bank). A core
+         * that starts secure would keep its banked registers in the other
+         * bank, so make it a plain ARMv8-M Mainline core instead. */
+        cpu->env.features &= ~(1ULL << ARM_FEATURE_M_SECURITY);
+        cpu->env.v7m.secure = false;
+        cpu->sau_sregion = 0;
+        /* NSACR.CP10/CP11 gate FP stacking for a non-secure background; with
+         * one state the FPU is simply governed by CPACR. */
+        cpu->env.v7m.nsacr = 0xcff;
+        break;
     default:
         return UC_ERR_ARG;
     }

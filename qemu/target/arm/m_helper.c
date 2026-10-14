@@ -793,7 +793,9 @@ static void v7m_exception_taken(ARMCPU *cpu, uint32_t lr, bool dotailchain,
         }
 
         lr &= ~R_V7M_EXCRET_ES_MASK;
-        if (targets_secure || !arm_feature(env, ARM_FEATURE_M_SECURITY)) {
+        /* ES is RES0 without the Security Extension (exception return
+         * treats a set ES there as an invalid return). */
+        if (targets_secure && arm_feature(env, ARM_FEATURE_M_SECURITY)) {
             lr |= R_V7M_EXCRET_ES_MASK;
         }
         lr &= ~R_V7M_EXCRET_SPSEL_MASK;
