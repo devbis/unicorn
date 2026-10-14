@@ -282,7 +282,8 @@ void armv7m_nvic_acknowledge_irq(void *opaque)
     if (irq < NVIC_FIRST_IRQ || !v->level) {
         v->pending = false;
     }
-    env->v7m.exception = irq;
+    /* Entering Handler mode switches from PSP to MSP when the thread used PSP. */
+    write_v7m_exception(env, irq);
     nvic_recompute_state(s);
 }
 
