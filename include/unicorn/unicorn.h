@@ -799,6 +799,34 @@ uc_err uc_arm_nvic(uc_engine *uc, uc_arm_nvic_op op, uint32_t arg,
                    uint32_t *value, unsigned size);
 
 /*
+Interrupts for chips with their own controller (ESP32-C6/H2): the host
+decides which one wins (priority, threshold) and tells the hart. A raised
+`cause` (0..2^31-1) is taken as an interrupt with mcause = cause | 1<<31,
+through mtvec (direct or vectored), whenever mstatus.MIE allows it, and keeps
+being asserted until the host passes a negative cause (level behaviour).
+Synchronous exceptions (ecall, illegal instruction, access faults) always go
+to the guest's own trap handler; ebreak and the end-of-run marker still stop
+the engine.
+*/
+UNICORN_EXPORT
+uc_err uc_riscv_irq(uc_engine *uc, int cause);
+
+/*
+ Serves the CSRs first..last (inclusive) from the host, for vendor-specific
+ CSRs the core does not have (Espressif's performance counter 0x7e0..0x7e2, CPU
+ GPIO 0x803..0x805). A csrr/csrw/csrrs... to one of them calls `cb` with
+ is_write = 0 to read the value, then, if the instruction writes, again with
+ is_write = 1 and the new value. A negative return raises illegal instruction;
+ a positive return from the read call leaves that number to the core's own CSRs, so
+ a range may cover standard CSRs the host does not serve.
+ The handler runs inside the translated code: it must not touch the engine.
+*/
+typedef int (*uc_riscv_csr_cb)(unsigned csrno, int is_write, uint32_t *value, void *user);
+UNICORN_EXPORT
+uc_err uc_riscv_csr_handler(uc_engine *uc, unsigned first, unsigned last,
+                            uc_riscv_csr_cb cb, void *user);
+
+/*
  Report the last error number when some API function fails.
  Like glibc's errno, uc_errno might not retain its old value once accessed.
 

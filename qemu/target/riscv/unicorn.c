@@ -167,6 +167,17 @@ uc_err reg_read(void *_env, int mode, unsigned int regid, void *value,
         CHECK_REG_TYPE(uint32_t);
         *(uint32_t *)value = (uint32_t)val;
 #endif
+    } else if (regid >= UC_RISCV_REG_CSR_BASE &&
+               regid < UC_RISCV_REG_CSR_BASE + 0x1000) {
+        target_ulong val = 0;
+        riscv_csrrw(env, regid - UC_RISCV_REG_CSR_BASE, &val, -1, 0);
+#ifdef TARGET_RISCV64
+        CHECK_REG_TYPE(uint64_t);
+        *(uint64_t *)value = (uint64_t)val;
+#else
+        CHECK_REG_TYPE(uint32_t);
+        *(uint32_t *)value = (uint32_t)val;
+#endif
     } else {
         switch (regid) {
         default:
@@ -277,6 +288,51 @@ static bool riscv_stop_interrupt(struct uc_struct *uc, int intno)
     }
 }
 
+static bool riscv_guest_exception(struct uc_struct *uc, int intno)
+{
+    switch (intno) {
+    case RISCV_EXCP_INST_ADDR_MIS:
+    case RISCV_EXCP_INST_ACCESS_FAULT:
+    case RISCV_EXCP_ILLEGAL_INST:
+    case RISCV_EXCP_LOAD_ADDR_MIS:
+    case RISCV_EXCP_LOAD_ACCESS_FAULT:
+    case RISCV_EXCP_STORE_AMO_ADDR_MIS:
+    case RISCV_EXCP_STORE_AMO_ACCESS_FAULT:
+    case RISCV_EXCP_U_ECALL:
+    case RISCV_EXCP_S_ECALL:
+    case RISCV_EXCP_M_ECALL:
+        return true;
+    default: /* ebreak and the end marker: the host decides */
+        return false;
+    }
+}
+
+static uc_err riscv_csr_handler(struct uc_struct *uc, unsigned first, unsigned last,
+                                int (*cb)(unsigned, int, uint32_t *, void *), void *user)
+{
+    CPURISCVState *env = &RISCV_CPU(uc->cpu)->env;
+
+    env->host_csr = cb;
+    env->host_csr_user = user;
+    env->host_csr_first = first;
+    env->host_csr_last = last;
+    return UC_ERR_OK;
+}
+
+static uc_err riscv_irq(struct uc_struct *uc, int cause)
+{
+    CPUState *cs = uc->cpu;
+    CPURISCVState *env = &RISCV_CPU(cs)->env;
+
+    env->ext_irq = cause < 0 ? -1 : cause;
+    if (cause >= 0) {
+        cpu_interrupt(cs, CPU_INTERRUPT_HARD);
+    } else if (!(env->mip & env->mie)) {
+        cpu_reset_interrupt(cs, CPU_INTERRUPT_HARD);
+    }
+    return UC_ERR_OK;
+}
+
 static bool riscv_insn_hook_validate(uint32_t insn_enum)
 {
     return false;
@@ -305,6 +361,9 @@ void uc_init(struct uc_struct *uc)
     uc->set_pc = riscv_set_pc;
     uc->get_pc = riscv_get_pc;
     uc->stop_interrupt = riscv_stop_interrupt;
+    uc->guest_exception = riscv_guest_exception;
+    uc->riscv_irq = riscv_irq;
+    uc->riscv_csr_handler = riscv_csr_handler;
     uc->insn_hook_validate = riscv_insn_hook_validate;
     uc->cpus_init = riscv_cpus_init;
     uc->cpu_context_size = offsetof(CPURISCVState, rdtime_fn);

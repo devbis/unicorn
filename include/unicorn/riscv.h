@@ -309,6 +309,12 @@ typedef enum uc_riscv_reg {
     UC_RISCV_REG_FT11 = UC_RISCV_REG_F31, // "ft11"
 } uc_riscv_reg;
 
+// Any CSR by its number (pmpcfg0 = 0x3a0, ...), beyond the named ones above:
+// uc_reg_read(uc, UC_RISCV_REG_CSR(0x3b0), &value). Reads and writes go through
+// the CSR file, so side effects and access checks apply.
+#define UC_RISCV_REG_CSR_BASE 0x1000
+#define UC_RISCV_REG_CSR(number) (UC_RISCV_REG_CSR_BASE + (number))
+
 #ifdef __cplusplus
 }
 #endif

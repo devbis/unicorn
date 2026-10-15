@@ -158,7 +158,7 @@ static bool riscv_cpu_has_work(CPUState *cs)
      * Definition of the WFI instruction requires it to ignore the privilege
      * mode and delegation registers, but respect individual enables
      */
-    return (env->mip & env->mie) != 0;
+    return (env->mip & env->mie) != 0 || env->ext_irq >= 0;
 }
 
 void restore_state_to_opc(CPURISCVState *env, TranslationBlock *tb,
@@ -179,6 +179,7 @@ static void riscv_cpu_reset(CPUState *dev)
     env->priv = PRV_M;
     env->mstatus &= ~(MSTATUS_MIE | MSTATUS_MPRV);
     env->mcause = 0;
+    env->ext_irq = -1;
     env->pc = env->resetvec;
 
     cs->exception_index = EXCP_NONE;

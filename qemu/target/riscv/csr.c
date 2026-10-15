@@ -1548,6 +1548,30 @@ int riscv_csrrw(CPURISCVState *env, int csrno, target_ulong *ret_value,
         return -1;
     }
 
+    /* CSRs the host implements (vendor-specific ones). The host answers 1 for a
+     * number in its range that it does not implement, which then takes the
+     * standard path. */
+    if (env->host_csr && (unsigned)csrno >= env->host_csr_first &&
+        (unsigned)csrno <= env->host_csr_last) {
+        uint32_t value = 0;
+        int status = env->host_csr(csrno, 0, &value, env->host_csr_user);
+        if (status < 0) {
+            return -1;
+        }
+        if (status == 0) {
+            if (ret_value) {
+                *ret_value = value;
+            }
+            if (write_mask) {
+                value = (value & ~write_mask) | (new_value & write_mask);
+                if (env->host_csr(csrno, 1, &value, env->host_csr_user) < 0) {
+                    return -1;
+                }
+            }
+            return 0;
+        }
+    }
+
     /* check predicate */
     if (!csr_ops[csrno].predicate || csr_ops[csrno].predicate(env, csrno) < 0) {
         return -1;

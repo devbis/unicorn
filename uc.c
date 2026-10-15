@@ -3122,6 +3122,27 @@ void trace_end(uc_tracer *tracer, trace_loc loc, const char *fmt, ...)
 #endif
 
 UNICORN_EXPORT
+uc_err uc_riscv_csr_handler(uc_engine *uc, unsigned first, unsigned last,
+                            uc_riscv_csr_cb cb, void *user)
+{
+    UC_INIT(uc);
+    if (!uc->riscv_csr_handler) {
+        return UC_ERR_ARG;
+    }
+    return uc->riscv_csr_handler(uc, first, last, cb, user);
+}
+
+UNICORN_EXPORT
+uc_err uc_riscv_irq(uc_engine *uc, int cause)
+{
+    UC_INIT(uc);
+    if (!uc->riscv_irq) {
+        return UC_ERR_ARG;
+    }
+    return uc->riscv_irq(uc, cause);
+}
+
+UNICORN_EXPORT
 uc_err uc_arm_nvic(uc_engine *uc, uc_arm_nvic_op op, uint32_t arg,
                    uint32_t *value, unsigned size)
 {

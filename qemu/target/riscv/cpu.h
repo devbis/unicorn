@@ -114,6 +114,13 @@ struct CPURISCVState {
     target_ulong mstatus;
 
     target_ulong mip;
+    /*
+     * Interrupt chosen by a host-side controller (uc_riscv_irq), -1 for none.
+     * Taken like a local interrupt with mcause = this number whenever the hart
+     * can accept one, independently of mie/mip: the ESP32 RISC-V parts route
+     * their 31 CPU interrupts through a memory-mapped controller, not mie.
+     */
+    int32_t ext_irq;
 
 #ifdef TARGET_RISCV32
     target_ulong mstatush;
@@ -200,6 +207,11 @@ struct CPURISCVState {
 
     /* Fields from here on are preserved across CPU reset. */
     QEMUTimer *timer; /* Internal timer */
+
+    /* CSRs served by the host (uc_riscv_csr_handler), for vendor extensions. */
+    int (*host_csr)(unsigned csrno, int is_write, uint32_t *value, void *user);
+    void *host_csr_user;
+    unsigned host_csr_first, host_csr_last;
 
     // Unicorn engine
     struct uc_struct *uc;

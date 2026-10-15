@@ -38,6 +38,10 @@ static int riscv_cpu_local_irq_pending(CPURISCVState *env)
 
     target_ulong pending = env->mip & env->mie &
                                ~(MIP_VSSIP | MIP_VSTIP | MIP_VSEIP);
+
+    if (env->ext_irq >= 0 && (env->priv < PRV_M || mstatus_mie)) {
+        return env->ext_irq;
+    }
     target_ulong vspending = (env->mip & env->mie &
                               (MIP_VSSIP | MIP_VSTIP | MIP_VSEIP));
 
@@ -799,7 +803,18 @@ bool riscv_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
     if (riscv_feature(env, RISCV_FEATURE_PMP) &&
         (ret == TRANSLATE_SUCCESS) &&
         !pmp_hart_has_privs(env, pa, size, 1 << access_type, mode)) {
-        ret = TRANSLATE_PMP_FAIL;
+        /*
+         * An instruction fetch probes with size 0, which stands for the rest of
+         * the page; a PMP region that ends inside that page (firmware sets
+         * them to the byte, e.g. the end of its text) makes the whole probe
+         * fail although the instruction itself is fine. Judge the fetch by its
+         * first byte. The TLB entry then covers the page, so accesses past the
+         * region edge in that page are not checked (the hardware checks each).
+         */
+        if (size != 0 ||
+            !pmp_hart_has_privs(env, pa, 1, 1 << access_type, mode)) {
+            ret = TRANSLATE_PMP_FAIL;
+        }
     }
     if (ret == TRANSLATE_PMP_FAIL) {
         pmp_violation = true;

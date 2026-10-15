@@ -332,6 +332,13 @@ struct uc_struct {
     uc_err (*arm_nvic)(struct uc_struct *uc, int op, uint32_t arg,
                        uint32_t *value, unsigned size);
 
+    // Raises (cause >= 0) or clears (cause < 0) the interrupt a host-side
+    // controller picked for a RISC-V hart; see uc_riscv_irq().
+    uc_err (*riscv_irq)(struct uc_struct *uc, int cause);
+    uc_err (*riscv_csr_handler)(struct uc_struct *uc, unsigned first, unsigned last,
+                                int (*cb)(unsigned csrno, int is_write, uint32_t *value, void *user),
+                                void *user);
+
     MemoryRegion *system_memory;    // qemu/exec.c
     MemoryRegion *system_io;        // qemu/exec.c
     MemoryRegion io_mem_unassigned; // qemu/exec.c
