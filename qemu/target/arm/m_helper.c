@@ -1288,6 +1288,19 @@ static void do_v7m_exception_exit(ARMCPU *cpu)
 
     ftype = excret & R_V7M_EXCRET_FTYPE_MASK;
 
+    if (arm_feature(env, ARM_FEATURE_V8) && !arm_feature(env, ARM_FEATURE_M_SECURITY)) {
+        /*
+         * Without the Security Extension the core has one security state
+         * (UC_ARM_NVIC_NO_SECURITY). S and ES name the state the background
+         * code and the exception target are in, which is that state, so
+         * they carry no information. Secure-built software (Zephyr with
+         * CONFIG_ARM_SECURE_FIRMWARE) leaves them set in the EXC_RETURN it
+         * stores for its threads; clear them rather than take a UsageFault
+         * for a return that is valid in the one state.
+         */
+        excret &= ~(R_V7M_EXCRET_S_MASK | R_V7M_EXCRET_ES_MASK);
+    }
+
     if (!ftype && !cpu_isar_feature(aa32_vfp_simd, cpu)) {
         qemu_log_mask(LOG_GUEST_ERROR, "M profile: zero FTYPE in exception "
                       "exit PC value 0x%" PRIx32 " is UNPREDICTABLE "
