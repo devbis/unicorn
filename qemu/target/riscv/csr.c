@@ -47,6 +47,14 @@ static int read_mie(CPURISCVState *env, int csrno, target_ulong *val);
 static int write_mie(CPURISCVState *env, int csrno, target_ulong val);
 static int read_mtvec(CPURISCVState *env, int csrno, target_ulong *val);
 static int write_mtvec(CPURISCVState *env, int csrno, target_ulong val);
+static int read_mtvt(CPURISCVState *env, int csrno, target_ulong *val);
+static int write_mtvt(CPURISCVState *env, int csrno, target_ulong val);
+static int read_mnxti(CPURISCVState *env, int csrno, target_ulong *val);
+static int write_mnxti(CPURISCVState *env, int csrno, target_ulong val);
+static int read_mintthresh(CPURISCVState *env, int csrno, target_ulong *val);
+static int write_mintthresh(CPURISCVState *env, int csrno, target_ulong val);
+static int read_mintstatus(CPURISCVState *env, int csrno, target_ulong *val);
+static int write_mintstatus(CPURISCVState *env, int csrno, target_ulong val);
 static int read_mcounteren(CPURISCVState *env, int csrno, target_ulong *val);
 static int write_mcounteren(CPURISCVState *env, int csrno, target_ulong val);
 static int read_mucounteren(CPURISCVState *env, int csrno, target_ulong *val);
@@ -190,6 +198,10 @@ static riscv_csr_operations csr_ops[CSR_TABLE_SIZE] = {
     [CSR_MEDELEG] =             { any,  read_medeleg,     write_medeleg     },
     [CSR_MIE] =                 { any,  read_mie,         write_mie         },
     [CSR_MTVEC] =               { any,  read_mtvec,       write_mtvec       },
+    [CSR_MTVT] =                { any,  read_mtvt,        write_mtvt        },
+    [CSR_MNXTI] =               { any,  read_mnxti,       write_mnxti       },
+    [CSR_MINTTHRESH] =          { any,  read_mintthresh,  write_mintthresh  },
+    [CSR_MINTSTATUS] =          { any,  read_mintstatus,  write_mintstatus  },
     [CSR_MCOUNTEREN] =          { any,  read_mcounteren,  write_mcounteren  },
 
 #if defined(TARGET_RISCV32)
@@ -870,12 +882,75 @@ static int read_mtvec(CPURISCVState *env, int csrno, target_ulong *val)
 
 static int write_mtvec(CPURISCVState *env, int csrno, target_ulong val)
 {
-    /* bits [1:0] encode mode; 0 = direct, 1 = vectored, 2 >= reserved */
-    if ((val & 3) < 2) {
+    /* bits [1:0] encode mode; 0 = direct, 1 = vectored, 2 = reserved, 3 = CLIC (non-vectored
+     * here: every interrupt enters at the base, the handler claims it with mnxti) */
+    if ((val & 3) != 2) {
         env->mtvec = val;
     } else {
         qemu_log_mask(LOG_UNIMP, "CSR_MTVEC: reserved mode not supported\n");
     }
+    return 0;
+}
+
+static int read_mtvt(CPURISCVState *env, int csrno, target_ulong *val)
+{
+    *val = env->mtvt;
+    return 0;
+}
+
+static int write_mtvt(CPURISCVState *env, int csrno, target_ulong val)
+{
+    env->mtvt = val & ~(target_ulong)0x3f;
+    return 0;
+}
+
+static int read_mintthresh(CPURISCVState *env, int csrno, target_ulong *val)
+{
+    *val = env->mintthresh;
+    return 0;
+}
+
+static int write_mintthresh(CPURISCVState *env, int csrno, target_ulong val)
+{
+    env->mintthresh = val & 0xff;
+    return 0;
+}
+
+static int read_mintstatus(CPURISCVState *env, int csrno, target_ulong *val)
+{
+    *val = (target_ulong)env->mil << 24;
+    return 0;
+}
+
+static int write_mintstatus(CPURISCVState *env, int csrno, target_ulong val)
+{
+    return 0; /* read-only: the level changes with traps and mret */
+}
+
+/* mnxti: a read claims the highest interrupt above mil and the threshold. It returns the address of its
+ * vector-table entry (mtvt + 4 * number, which the Zephyr CLIC code turns back into the number) or 0 when
+ * none is left; the level of the claimed interrupt becomes mil. A write (csrrci/csrrsi with MIE) enables
+ * interrupts, as the handler expects after the claim. */
+static int read_mnxti(CPURISCVState *env, int csrno, target_ulong *val)
+{
+    uint32_t level = 0;
+    int irq = -1;
+
+    if (env->clic_pick) {
+        irq = env->clic_pick(env->clic_user, env->mil, env->mintthresh, &level, 1);
+    }
+    if (irq < 0) {
+        *val = 0;
+        return 0;
+    }
+    env->mil = level;
+    *val = env->mtvt + 4 * (target_ulong)irq;
+    return 0;
+}
+
+static int write_mnxti(CPURISCVState *env, int csrno, target_ulong val)
+{
+    env->mstatus |= MSTATUS_MIE;
     return 0;
 }
 

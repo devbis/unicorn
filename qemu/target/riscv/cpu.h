@@ -142,6 +142,12 @@ struct CPURISCVState {
     target_ulong scause;
 
     target_ulong mtvec;
+    /* CLIC: vector table base, threshold, level of the active interrupt (mintstatus.mil) and the level
+     * the host picked for the pending interrupt (see clic_pick below). */
+    target_ulong mtvt;
+    target_ulong mintthresh;
+    uint32_t mil;
+    uint32_t clic_level;
     target_ulong mepc;
     target_ulong mcause;
     target_ulong mtval;  /* since: priv-1.10.0 */
@@ -212,6 +218,11 @@ struct CPURISCVState {
     int (*host_csr)(unsigned csrno, int is_write, uint32_t *value, void *user);
     void *host_csr_user;
     unsigned host_csr_first, host_csr_last;
+    /* CLIC interrupt choice (uc_riscv_clic): the highest pending interrupt whose level is above `mil`
+     * and `thresh`, its level in *level, or -1. claim != 0 when mnxti takes it (clears a software or
+     * edge-triggered pending bit). Runs inside the translated code: it must not touch the engine. */
+    int (*clic_pick)(void *user, uint32_t mil, uint32_t thresh, uint32_t *level, int claim);
+    void *clic_user;
 
     // Unicorn engine
     struct uc_struct *uc;

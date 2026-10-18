@@ -333,6 +333,15 @@ static uc_err riscv_irq(struct uc_struct *uc, int cause)
     return UC_ERR_OK;
 }
 
+static uc_err riscv_clic(struct uc_struct *uc, uc_riscv_clic_cb cb, void *user)
+{
+    CPURISCVState *env = &RISCV_CPU(uc->cpu)->env;
+
+    env->clic_pick = cb;
+    env->clic_user = user;
+    return UC_ERR_OK;
+}
+
 static bool riscv_insn_hook_validate(uint32_t insn_enum)
 {
     return false;
@@ -364,6 +373,7 @@ void uc_init(struct uc_struct *uc)
     uc->guest_exception = riscv_guest_exception;
     uc->riscv_irq = riscv_irq;
     uc->riscv_csr_handler = riscv_csr_handler;
+    uc->riscv_clic = riscv_clic;
     uc->insn_hook_validate = riscv_insn_hook_validate;
     uc->cpus_init = riscv_cpus_init;
     uc->cpu_context_size = offsetof(CPURISCVState, rdtime_fn);

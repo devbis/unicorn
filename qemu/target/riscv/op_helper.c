@@ -156,6 +156,9 @@ target_ulong helper_mret(CPURISCVState *env, target_ulong cpu_pc_deb)
     mstatus = set_field(mstatus, MSTATUS_MPV, 0);
 #endif
     env->mstatus = mstatus;
+    if ((env->mtvec & 3) == 3) {
+        env->mil = (env->mcause >> 16) & 0xff; /* CLIC: back to the level the trap saved in mcause.MPIL */
+    }
     riscv_cpu_set_mode(env, prev_priv);
 
     if (riscv_has_ext(env, RVH)) {

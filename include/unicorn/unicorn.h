@@ -827,6 +827,20 @@ uc_err uc_riscv_csr_handler(uc_engine *uc, unsigned first, unsigned last,
                             uc_riscv_csr_cb cb, void *user);
 
 /*
+ The CLIC of a RISC-V hart (mtvec mode 3, the SiFive draft as Zephyr's BFLB SoC uses it), with the
+ controller's memory-mapped registers in the host. The host answers cb(user, mil, thresh, &level, claim):
+ the highest-level pending interrupt whose level is above `mil` (any level when mil is 0, no interrupt being
+ active) and at least `thresh`, its level in *level, and its number as the return value, or -1 when there is none. claim != 0 when the hart claims it (mnxti).
+ The engine keeps mintstatus.mil, mintthresh, mtvt and mnxti itself. An interrupt is taken through mtvec
+ (its base, non-vectored), with mcause.MPIL holding the previous level; mret restores that level.
+ Call uc_riscv_irq(uc, n) with n >= 0 when something is pending so that a sleeping hart wakes (-1 when not).
+ The callback runs inside the translated code: it must not touch the engine.
+*/
+typedef int (*uc_riscv_clic_cb)(void *user, uint32_t mil, uint32_t thresh, uint32_t *level, int claim);
+UNICORN_EXPORT
+uc_err uc_riscv_clic(uc_engine *uc, uc_riscv_clic_cb cb, void *user);
+
+/*
  Report the last error number when some API function fails.
  Like glibc's errno, uc_errno might not retain its old value once accessed.
 

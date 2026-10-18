@@ -3133,6 +3133,16 @@ uc_err uc_riscv_csr_handler(uc_engine *uc, unsigned first, unsigned last,
 }
 
 UNICORN_EXPORT
+uc_err uc_riscv_clic(uc_engine *uc, uc_riscv_clic_cb cb, void *user)
+{
+    UC_INIT(uc);
+    if (!uc->riscv_clic) {
+        return UC_ERR_ARG;
+    }
+    return uc->riscv_clic(uc, cb, user);
+}
+
+UNICORN_EXPORT
 uc_err uc_riscv_irq(uc_engine *uc, int cause)
 {
     UC_INIT(uc);

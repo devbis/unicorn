@@ -134,6 +134,11 @@
 #define CSR_MIE             0x304
 #define CSR_MTVEC           0x305
 #define CSR_MCOUNTEREN      0x306
+/* CLIC (mtvec mode 3): the vector table base, the claim register, the threshold and the active level */
+#define CSR_MTVT            0x307
+#define CSR_MNXTI           0x345
+#define CSR_MINTTHRESH      0x347
+#define CSR_MINTSTATUS      0xfb1
 
 /* 32-bit only */
 #define CSR_MSTATUSH        0x310

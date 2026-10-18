@@ -338,6 +338,8 @@ struct uc_struct {
     uc_err (*riscv_csr_handler)(struct uc_struct *uc, unsigned first, unsigned last,
                                 int (*cb)(unsigned csrno, int is_write, uint32_t *value, void *user),
                                 void *user);
+    // Host choice of the CLIC interrupt (mtvec mode 3); see uc_riscv_clic().
+    uc_err (*riscv_clic)(struct uc_struct *uc, uc_riscv_clic_cb cb, void *user);
 
     MemoryRegion *system_memory;    // qemu/exec.c
     MemoryRegion *system_io;        // qemu/exec.c

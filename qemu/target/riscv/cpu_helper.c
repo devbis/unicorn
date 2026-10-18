@@ -28,9 +28,31 @@ int riscv_cpu_mmu_index(CPURISCVState *env, bool ifetch)
     return env->priv;
 }
 
+/* CLIC (mtvec mode 3): the host picks the interrupt (clic_pick); it is taken when its level is above both
+ * mintstatus.mil and mintthresh, and, in M-mode, only when mstatus.MIE is set. */
+static int riscv_clic_pending(CPURISCVState *env)
+{
+    uint32_t level = 0;
+
+    if (!env->clic_pick || (env->priv == PRV_M && !get_field(env->mstatus, MSTATUS_MIE))) {
+        return EXCP_NONE;
+    }
+    int irq = env->clic_pick(env->clic_user, env->mil, env->mintthresh, &level, 0);
+    /* mil == 0 is "no interrupt active": then any level is eligible, as the BFLB SoC's level-0 timer needs */
+    if (irq < 0 || (env->mil && level <= env->mil) || level < env->mintthresh) {
+        return EXCP_NONE;
+    }
+    env->clic_level = level;
+    return irq;
+}
+
 static int riscv_cpu_local_irq_pending(CPURISCVState *env)
 {
     target_ulong irqs;
+
+    if ((env->mtvec & 3) == 3) {
+        return riscv_clic_pending(env);
+    }
 
     target_ulong mstatus_mie = get_field(env->mstatus, MSTATUS_MIE);
     target_ulong mstatus_sie = get_field(env->mstatus, MSTATUS_SIE);
@@ -983,6 +1005,13 @@ void riscv_cpu_do_interrupt(CPUState *cs)
         s = set_field(s, MSTATUS_MIE, 0);
         env->mstatus = s;
         env->mcause = cause | ~(((target_ulong)-1) >> async);
+        if ((env->mtvec & 3) == 3) {
+            /* CLIC: mcause.MPIL holds the level in effect before the trap; an interrupt raises the level */
+            env->mcause |= (target_ulong)env->mil << 16;
+            if (async) {
+                env->mil = env->clic_level;
+            }
+        }
         env->mepc = env->pc;
         env->mbadaddr = tval;
         env->mtval2 = mtval2;
