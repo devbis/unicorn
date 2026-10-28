@@ -92,8 +92,23 @@ typedef enum uc_mcs51_reg {
        read callback can use it to return a port latch instead of the pins,
        as the 8051 does for these instructions. */
     UC_MCS51_REG_RMW_ACCESS,
+    /* uint8_t cycle model, one of UC_MCS51_CYCLE_MODEL_*; other values are
+       rejected. Selects the per-opcode cycle counts and the cost of an
+       interrupt entry; it does not change what instructions do. Kept across
+       resets. */
+    UC_MCS51_REG_CYCLE_MODEL,
     UC_MCS51_REG_ENDING,
 } uc_mcs51_reg;
+
+/* Default: classic engine timing, the Intel MCS-51 machine-cycle counts
+   except a 1-cycle count for MOV direct,Rn; MOV Rn,direct; ORL/ANL C,bit;
+   ORL/ANL C,/bit and MOV bit,C, and 2 cycles per interrupt entry. */
+#define UC_MCS51_CYCLE_MODEL_CLASSIC 0u
+/* TI CC253x/CC2540 single-clock core: the per-opcode counts of TI SWRU191F
+   Table 2-3 (best case, one memory access per cycle), and 7 cycles per
+   interrupt entry: one to detect the request and the 6 of the forced LCALL
+   (SWRU191F 2.5.2, the fastest response). */
+#define UC_MCS51_CYCLE_MODEL_CC253X 1u
 
 /*
  * Direct access to the memories of the model, so the interpreter does not go
