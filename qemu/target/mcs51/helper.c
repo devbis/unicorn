@@ -74,6 +74,17 @@ static uint8_t indirect_read(MCS51CPUState *env, uint8_t addr)
     return cpu_ldub_data(env, UC_MCS51_IDATA_BASE + addr);
 }
 
+/* The destination read of a read-modify-write instruction (see
+   UC_MCS51_REG_RMW_ACCESS). */
+static uint8_t direct_read_rmw(MCS51CPUState *env, uint8_t addr)
+{
+    uint8_t value;
+    env->rmw_access = 1;
+    value = direct_read(env, addr);
+    env->rmw_access = 0;
+    return value;
+}
+
 static void indirect_write(MCS51CPUState *env, uint8_t addr, uint8_t value)
 {
     if (env->fast.idata) {
@@ -105,16 +116,46 @@ static void acc_write(MCS51CPUState *env, uint8_t value)
     direct_write(env, SFR_ACC, value);
 }
 
+/*
+ * The data pointer selected for DPTR instructions: DPL/DPH, or the second
+ * pointer when one is configured (UC_MCS51_REG_DPS_SFR) and DPS bit 0 is 1.
+ */
+static void dptr_select(MCS51CPUState *env, uint8_t *low, uint8_t *high)
+{
+    if (env->dps_sfr && env->dpl1_sfr && env->dph1_sfr &&
+        (direct_read(env, env->dps_sfr) & 1u)) {
+        *low = env->dpl1_sfr;
+        *high = env->dph1_sfr;
+    } else {
+        *low = SFR_DPL;
+        *high = SFR_DPH;
+    }
+}
+
 static uint16_t dptr_read(MCS51CPUState *env)
 {
-    return (uint16_t)(direct_read(env, SFR_DPL) |
-                      ((uint16_t)direct_read(env, SFR_DPH) << 8));
+    uint8_t low, high;
+    dptr_select(env, &low, &high);
+    return (uint16_t)(direct_read(env, low) |
+                      ((uint16_t)direct_read(env, high) << 8));
 }
 
 static void dptr_write(MCS51CPUState *env, uint16_t value)
 {
-    direct_write(env, SFR_DPL, (uint8_t)value);
-    direct_write(env, SFR_DPH, (uint8_t)(value >> 8));
+    uint8_t low, high;
+    dptr_select(env, &low, &high);
+    direct_write(env, low, (uint8_t)value);
+    direct_write(env, high, (uint8_t)(value >> 8));
+}
+
+/* Highest set bit of a nonzero level mask. */
+static unsigned highest_level(uint8_t levels)
+{
+    unsigned level = 7;
+    while (!(levels & (1u << level))) {
+        level--;
+    }
+    return level;
 }
 
 static bool carry_read(MCS51CPUState *env)
@@ -144,6 +185,15 @@ static bool bit_read(MCS51CPUState *env, uint8_t bitaddr)
     return (direct_read(env, byteaddr) & (1u << bit)) != 0;
 }
 
+static bool bit_read_rmw(MCS51CPUState *env, uint8_t bitaddr)
+{
+    bool value;
+    env->rmw_access = 1;
+    value = bit_read(env, bitaddr);
+    env->rmw_access = 0;
+    return value;
+}
+
 static void bit_write(MCS51CPUState *env, uint8_t bitaddr, bool value)
 {
     uint8_t byteaddr;
@@ -156,7 +206,7 @@ static void bit_write(MCS51CPUState *env, uint8_t bitaddr, bool value)
         byteaddr = bitaddr & 0xf8u;
         bit = bitaddr & 7u;
     }
-    byte = direct_read(env, byteaddr);
+    byte = direct_read_rmw(env, byteaddr);
     byte = value ? (uint8_t)(byte | (1u << bit))
                  : (uint8_t)(byte & ~(1u << bit));
     direct_write(env, byteaddr, byte);
@@ -311,25 +361,29 @@ static void mcs51_execute_one(MCS51CPUState *env)
 
     env->instructions++;
 
-    /* Timer 0 uses the standard 8051 vector at 0x000b. */
-    if (!env->interrupt_in_service &&
-        (direct_read(env, SFR_IE) & 0x82u) == 0x82u &&
-        (direct_read(env, SFR_TCON) & 0x20u) != 0) {
+    if (env->interrupt_inhibit) {
+        /* The instruction after RETI executes before any interrupt. */
+        env->interrupt_inhibit = 0;
+    } else if (env->timer0_interrupt && !env->interrupt_levels &&
+               (direct_read(env, SFR_IE) & 0x82u) == 0x82u &&
+               (direct_read(env, SFR_TCON) & 0x20u) != 0) {
+        /* Timer 0 uses the standard 8051 vector at 0x000b. */
         push_return_pc(env, instruction_pc);
         direct_write(env, SFR_TCON,
                      (uint8_t)(direct_read(env, SFR_TCON) & ~0x20u));
-        env->interrupt_in_service = 1;
+        env->interrupt_levels = 1;
         env->pc = 0x000bu;
         env->cycles += 2;
         return;
-    }
-
-    /* SoC models can request their part-specific interrupt vector. */
-    if (!env->interrupt_in_service && env->interrupt_vector != 0) {
+    } else if (env->interrupt_vector != 0 &&
+               (!env->interrupt_levels ||
+                env->interrupt_level > highest_level(env->interrupt_levels))) {
+        /* SoC models request their part-specific vector and its level; only
+           a higher level than every one in progress preempts. */
         uint16_t vector = env->interrupt_vector;
         env->interrupt_vector = 0;
         push_return_pc(env, instruction_pc);
-        env->interrupt_in_service = 1;
+        env->interrupt_levels |= (uint8_t)(1u << env->interrupt_level);
         env->pc = vector;
         env->cycles += 2;
         return;
@@ -419,7 +473,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
             break;
         case 0x05: /* INC direct */
             address = fetch8(env, &pc);
-            direct_write(env, address, (uint8_t)(direct_read(env, address) + 1u));
+            direct_write(env, address, (uint8_t)(direct_read_rmw(env, address) + 1u));
             cycles = 1;
             break;
         case 0x06: case 0x07: /* INC @Ri */
@@ -429,7 +483,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
         case 0x10: /* JBC bit,rel */
             bitaddr = fetch8(env, &pc);
             rel = fetch8(env, &pc);
-            take = bit_read(env, bitaddr);
+            take = bit_read_rmw(env, bitaddr);
             if (take) {
                 bit_write(env, bitaddr, false);
                 pc = (uint16_t)(pc + (int8_t)rel);
@@ -453,7 +507,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
             break;
         case 0x15: /* DEC direct */
             address = fetch8(env, &pc);
-            direct_write(env, address, (uint8_t)(direct_read(env, address) - 1u));
+            direct_write(env, address, (uint8_t)(direct_read_rmw(env, address) - 1u));
             break;
         case 0x16: case 0x17: /* DEC @Ri */
             address = reg_read(env, opcode & 1u);
@@ -481,7 +535,13 @@ static void mcs51_execute_one(MCS51CPUState *env)
             value = stack_pop(env);
             address = stack_pop(env);
             pc = (uint16_t)(((uint16_t)value << 8) | address);
-            env->interrupt_in_service = 0;
+            if (env->interrupt_levels) {
+                env->interrupt_levels &=
+                    (uint8_t)~(1u << highest_level(env->interrupt_levels));
+            }
+            if (env->post_reti_rule) {
+                env->interrupt_inhibit = 1;
+            }
             cycles = 2;
             break;
         case 0x33: /* RLC A */
@@ -498,7 +558,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
             break;
         case 0x42: case 0x52: case 0x62: /* ORL/ANL/XRL direct,A */
             address = fetch8(env, &pc);
-            value = direct_read(env, address);
+            value = direct_read_rmw(env, address);
             a = acc_read(env);
             if (opcode == 0x42)
                 value |= a;
@@ -511,7 +571,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
         case 0x43: case 0x53: case 0x63: /* ORL/ANL/XRL direct,#data */
             address = fetch8(env, &pc);
             operand = fetch8(env, &pc);
-            value = direct_read(env, address);
+            value = direct_read_rmw(env, address);
             if (opcode == 0x43)
                 value |= operand;
             else if (opcode == 0x53)
@@ -630,7 +690,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
             break;
         case 0xb2: /* CPL bit */
             bitaddr = fetch8(env, &pc);
-            bit_write(env, bitaddr, !bit_read(env, bitaddr));
+            bit_write(env, bitaddr, !bit_read_rmw(env, bitaddr));
             break;
         case 0xb3: /* CPL C */
             carry_write(env, !carry_read(env));
@@ -710,7 +770,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
         case 0xd5: /* DJNZ direct,rel */
             address = fetch8(env, &pc);
             rel = fetch8(env, &pc);
-            value = (uint8_t)(direct_read(env, address) - 1u);
+            value = (uint8_t)(direct_read_rmw(env, address) - 1u);
             direct_write(env, address, value);
             if (value != 0)
                 pc = (uint16_t)(pc + (int8_t)rel);
@@ -729,7 +789,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
             break;
         case 0xe2: case 0xe3: /* MOVX A,@Ri */
             address = reg_read(env, opcode & 1u);
-            value = direct_read(env, SFR_P2);
+            value = direct_read(env, env->xdata_page_sfr);
             acc_write(env, cpu_ldub_data(env, UC_MCS51_XDATA_BASE +
                                                    ((uint16_t)value << 8) + address));
             cycles = 2;
@@ -749,7 +809,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
             break;
         case 0xf2: case 0xf3: /* MOVX @Ri,A */
             address = reg_read(env, opcode & 1u);
-            value = direct_read(env, SFR_P2);
+            value = direct_read(env, env->xdata_page_sfr);
             cpu_stb_data(env, UC_MCS51_XDATA_BASE + ((uint16_t)value << 8) + address,
                          acc_read(env));
             cycles = 2;

@@ -42,6 +42,56 @@ typedef enum uc_mcs51_reg {
     UC_MCS51_REG_EVENT_CYCLES,  /* uint64_t */
     UC_MCS51_REG_INSTRUCTION_LIMIT, /* uint64_t, absolute instruction count */
     UC_MCS51_REG_BREAK_PC,      /* uint32_t, >0xffff disables */
+    /* uint8_t direct address of the SFR supplying the high address byte of
+       MOVX @Ri. Defaults to P2 (0xa0) like the classic 8051; derivatives
+       with a dedicated page register (e.g. CC2530 MPAGE, 0x93) set it once.
+       Kept across resets; values below 0x80 are rejected. */
+    UC_MCS51_REG_XDATA_PAGE_SFR,
+    /* uint8_t, 1 while an interrupt service routine runs (between the vector
+       entry and RETI), i.e. UC_MCS51_REG_INTERRUPT_LEVELS != 0. Writing 0
+       clears every in-progress level, so an SoC reset returns the core to
+       its power-on interrupt state; writing nonzero marks level 0 in
+       progress when no level is. */
+    UC_MCS51_REG_INTERRUPT_IN_SERVICE,
+    /* uint8_t, 1 (default): the core itself raises the classic 8051 Timer 0
+       interrupt (IE.7 and IE.1 set, TCON.5 set -> vector 0x000b, TCON.5
+       cleared) ahead of UC_MCS51_REG_IRQ_VECTOR. 0: the SoC model delivers
+       every interrupt through UC_MCS51_REG_IRQ_VECTOR, e.g. when IE.1/TCON.5
+       belong to another source with its own priority (CC2530 ADC). Kept
+       across resets. */
+    UC_MCS51_REG_TIMER0_INTERRUPT,
+    /* uint8_t 0..7, priority level of UC_MCS51_REG_IRQ_VECTOR; post it before
+       the vector. The core takes the posted vector at an instruction
+       boundary when no level is in progress or the posted level is higher
+       than every level in progress, then marks it in progress; RETI ends the
+       highest level in progress. With every request at level 0 (the
+       default) this is the classic single in-service latch. Reset to 0. */
+    UC_MCS51_REG_IRQ_LEVEL,
+    /* uint8_t bit mask, bit L set while an interrupt of level L is in
+       progress (entry to RETI). Reset to 0. */
+    UC_MCS51_REG_INTERRUPT_LEVELS,
+    /* uint8_t, 0 (default): classic engine behaviour. 1: after RETI exactly
+       one more instruction executes before any interrupt is taken (8051 RETI
+       definition). Kept across resets. */
+    UC_MCS51_REG_POST_RETI_RULE,
+    /* uint8_t, 1 between a RETI (with UC_MCS51_REG_POST_RETI_RULE set) and
+       the end of the following instruction's boundary check. Reset to 0. */
+    UC_MCS51_REG_INTERRUPT_INHIBIT,
+    /* uint8_t direct addresses of a second data pointer (e.g. CC2530 DPS
+       0x92, DPL1 0x84, DPH1 0x85). With all three set (each >= 0x80), every
+       DPTR instruction (MOV DPTR,#; INC DPTR; MOVX @DPTR; MOVC @A+DPTR;
+       JMP @A+DPTR) uses DPL1/DPH1 while bit 0 of the DPS SFR is 1. 0 (the
+       default) disables the second pointer. Kept across resets.
+       UC_MCS51_REG_DPL/DPH/DPTR always address DPL/DPH (0x82/0x83). */
+    UC_MCS51_REG_DPS_SFR,
+    UC_MCS51_REG_DPL1_SFR,
+    UC_MCS51_REG_DPH1_SFR,
+    /* uint8_t, read-only: 1 while the core reads the destination operand of
+       a read-modify-write instruction (ANL/ORL/XRL direct, INC/DEC direct,
+       DJNZ direct, JBC, CPL/CLR/SETB bit, MOV bit,C), 0 otherwise. An SFR
+       read callback can use it to return a port latch instead of the pins,
+       as the 8051 does for these instructions. */
+    UC_MCS51_REG_RMW_ACCESS,
     UC_MCS51_REG_ENDING,
 } uc_mcs51_reg;
 

@@ -10,7 +10,9 @@ typedef struct MCS51CPUState {
     uint64_t cycles;
     uint64_t instructions;
     uint16_t interrupt_vector;
-    uint8_t interrupt_in_service;
+    uint8_t interrupt_level;     /* level of interrupt_vector */
+    uint8_t interrupt_levels;    /* bit L: level L in progress */
+    uint8_t interrupt_inhibit;   /* post-RETI one-instruction inhibit */
     int end_reset_fields;
     struct uc_struct *uc;
     /* Host-provided fast path (see unicorn/mcs51.h); kept across resets. */
@@ -18,6 +20,13 @@ typedef struct MCS51CPUState {
     uint64_t event_cycles;
     uint64_t instruction_limit;
     uint32_t break_pc;
+    uint8_t xdata_page_sfr;
+    uint8_t timer0_interrupt;
+    uint8_t post_reti_rule;
+    uint8_t dps_sfr;   /* 0: no second data pointer */
+    uint8_t dpl1_sfr;
+    uint8_t dph1_sfr;
+    uint8_t rmw_access; /* reading a read-modify-write destination */
 } MCS51CPUState;
 
 typedef MCS51CPUState CPUArchState;

@@ -32,6 +32,9 @@ static void mcs51_cpu_initfn(struct uc_struct *uc, CPUState *cpu)
 {
     MCS51CPU *mcs51 = MCS51_CPU(cpu);
     mcs51->env.uc = uc;
+    /* Classic 8051: P2 supplies the MOVX @Ri page (see unicorn/mcs51.h). */
+    mcs51->env.xdata_page_sfr = 0xa0;
+    mcs51->env.timer0_interrupt = 1;
     cpu_set_cpustate_pointers(mcs51);
 }
 
