@@ -26,10 +26,13 @@ static void mcs51_reg_reset(struct uc_struct *uc)
     env->cycles = 0;
     env->instructions = 0;
     env->interrupt_vector = 0;
-    env->interrupt_in_service = 0;
+    env->interrupt_level = 0;
+    env->interrupt_levels = 0;
+    env->interrupt_inhibit = 0;
     env->event_cycles = UINT64_MAX;
     env->instruction_limit = UINT64_MAX;
     env->break_pc = 0x10000u;
+    env->rmw_access = 0;
 }
 
 static uint8_t sfr_read(MCS51CPUState *env, uint8_t address)
@@ -129,6 +132,50 @@ uc_err reg_read(void *opaque, int mode, unsigned int regid, void *value,
         CHECK_REG_TYPE(uint32_t);
         *(uint32_t *)value = env->break_pc;
         return UC_ERR_OK;
+    case UC_MCS51_REG_XDATA_PAGE_SFR:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->xdata_page_sfr;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INTERRUPT_IN_SERVICE:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->interrupt_levels != 0;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_TIMER0_INTERRUPT:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->timer0_interrupt;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_IRQ_LEVEL:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->interrupt_level;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INTERRUPT_LEVELS:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->interrupt_levels;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_POST_RETI_RULE:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->post_reti_rule;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INTERRUPT_INHIBIT:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->interrupt_inhibit;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_DPS_SFR:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->dps_sfr;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_DPL1_SFR:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->dpl1_sfr;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_DPH1_SFR:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->dph1_sfr;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_RMW_ACCESS:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->rmw_access;
+        return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);
         return ret;
@@ -214,6 +261,59 @@ uc_err reg_write(void *opaque, int mode, unsigned int regid,
     case UC_MCS51_REG_BREAK_PC:
         CHECK_REG_TYPE(uint32_t);
         env->break_pc = *(const uint32_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_XDATA_PAGE_SFR:
+        CHECK_REG_TYPE(uint8_t);
+        if (*(const uint8_t *)value < 0x80u) {
+            return UC_ERR_ARG;
+        }
+        env->xdata_page_sfr = *(const uint8_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INTERRUPT_IN_SERVICE:
+        CHECK_REG_TYPE(uint8_t);
+        if (*(const uint8_t *)value == 0) {
+            env->interrupt_levels = 0;
+        } else if (env->interrupt_levels == 0) {
+            env->interrupt_levels = 1;
+        }
+        return UC_ERR_OK;
+    case UC_MCS51_REG_TIMER0_INTERRUPT:
+        CHECK_REG_TYPE(uint8_t);
+        env->timer0_interrupt = *(const uint8_t *)value != 0;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_IRQ_LEVEL:
+        CHECK_REG_TYPE(uint8_t);
+        if (*(const uint8_t *)value > 7u) {
+            return UC_ERR_ARG;
+        }
+        env->interrupt_level = *(const uint8_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INTERRUPT_LEVELS:
+        CHECK_REG_TYPE(uint8_t);
+        env->interrupt_levels = *(const uint8_t *)value;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_POST_RETI_RULE:
+        CHECK_REG_TYPE(uint8_t);
+        env->post_reti_rule = *(const uint8_t *)value != 0;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_INTERRUPT_INHIBIT:
+        CHECK_REG_TYPE(uint8_t);
+        env->interrupt_inhibit = *(const uint8_t *)value != 0;
+        return UC_ERR_OK;
+    case UC_MCS51_REG_DPS_SFR:
+    case UC_MCS51_REG_DPL1_SFR:
+    case UC_MCS51_REG_DPH1_SFR:
+        CHECK_REG_TYPE(uint8_t);
+        if (*(const uint8_t *)value != 0 && *(const uint8_t *)value < 0x80u) {
+            return UC_ERR_ARG;
+        }
+        if (regid == UC_MCS51_REG_DPS_SFR) {
+            env->dps_sfr = *(const uint8_t *)value;
+        } else if (regid == UC_MCS51_REG_DPL1_SFR) {
+            env->dpl1_sfr = *(const uint8_t *)value;
+        } else {
+            env->dph1_sfr = *(const uint8_t *)value;
+        }
         return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);
