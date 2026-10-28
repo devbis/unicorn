@@ -176,6 +176,10 @@ uc_err reg_read(void *opaque, int mode, unsigned int regid, void *value,
         CHECK_REG_TYPE(uint8_t);
         *(uint8_t *)value = env->rmw_access;
         return UC_ERR_OK;
+    case UC_MCS51_REG_CYCLE_MODEL:
+        CHECK_REG_TYPE(uint8_t);
+        *(uint8_t *)value = env->cycle_model;
+        return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);
         return ret;
@@ -314,6 +318,13 @@ uc_err reg_write(void *opaque, int mode, unsigned int regid,
         } else {
             env->dph1_sfr = *(const uint8_t *)value;
         }
+        return UC_ERR_OK;
+    case UC_MCS51_REG_CYCLE_MODEL:
+        CHECK_REG_TYPE(uint8_t);
+        if (*(const uint8_t *)value > UC_MCS51_CYCLE_MODEL_CC253X) {
+            return UC_ERR_ARG;
+        }
+        env->cycle_model = *(const uint8_t *)value;
         return UC_ERR_OK;
     default:
         CHECK_RET_DEPRECATE(ret, regid);

@@ -27,6 +27,7 @@ typedef struct MCS51CPUState {
     uint8_t dpl1_sfr;
     uint8_t dph1_sfr;
     uint8_t rmw_access; /* reading a read-modify-write destination */
+    uint8_t cycle_model; /* UC_MCS51_CYCLE_MODEL_* */
 } MCS51CPUState;
 
 typedef MCS51CPUState CPUArchState;

@@ -344,6 +344,47 @@ void helper_uc_mcs51_exit(MCS51CPUState *env)
     cpu_loop_exit(cpu);
 }
 
+/*
+ * UC_MCS51_CYCLE_MODEL_CC253X: CPU clock cycles per opcode, the "Cycles"
+ * column of TI SWRU191F (CC253x/CC2540/CC2541 user's guide) Table 2-3,
+ * Instruction Set Summary. The note above the table makes these best-case
+ * counts (single-cycle access to the memory operand); flash and XDATA wait
+ * states are not modelled. The table gives one count per conditional
+ * branch, used whether or not it jumps. 0xa5 is reserved (rejected before
+ * any cycle is charged).
+ */
+static const uint8_t cc253x_cycles[256] = {
+    /*      x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 xa xb xc xd xe xf */
+    /* 0x */ 1, 3, 4, 1, 1, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2,
+    /* 1x */ 4, 6, 6, 1, 1, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2,
+    /* 2x */ 4, 3, 4, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* 3x */ 4, 6, 4, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* 4x */ 3, 3, 3, 4, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* 5x */ 3, 6, 3, 4, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* 6x */ 3, 3, 3, 4, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* 7x */ 3, 6, 2, 2, 2, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2,
+    /* 8x */ 3, 3, 2, 3, 5, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3,
+    /* 9x */ 3, 6, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* ax */ 2, 3, 2, 1, 5, 0, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4,
+    /* bx */ 2, 6, 3, 1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+    /* cx */ 4, 3, 3, 1, 1, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2,
+    /* dx */ 3, 6, 3, 1, 1, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+    /* ex */ 3, 3, 3, 3, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
+    /* fx */ 4, 6, 4, 4, 1, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2,
+};
+
+/* Cycles charged for an interrupt entry, which happens at an instruction
+   boundary (a request arriving during an instruction waits for its end). */
+static unsigned interrupt_entry_cycles(const MCS51CPUState *env)
+{
+    if (env->cycle_model == UC_MCS51_CYCLE_MODEL_CC253X) {
+        /* SWRU191F 2.5.2: the fastest response is seven machine cycles,
+           one to detect the request and six for the forced LCALL. */
+        return 7u;
+    }
+    return 2u;
+}
+
 static void mcs51_execute_one(MCS51CPUState *env)
 {
     uint16_t instruction_pc = (uint16_t)env->pc;
@@ -373,7 +414,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
                      (uint8_t)(direct_read(env, SFR_TCON) & ~0x20u));
         env->interrupt_levels = 1;
         env->pc = 0x000bu;
-        env->cycles += 2;
+        env->cycles += interrupt_entry_cycles(env);
         return;
     } else if (env->interrupt_vector != 0 &&
                (!env->interrupt_levels ||
@@ -385,7 +426,7 @@ static void mcs51_execute_one(MCS51CPUState *env)
         push_return_pc(env, instruction_pc);
         env->interrupt_levels |= (uint8_t)(1u << env->interrupt_level);
         env->pc = vector;
-        env->cycles += 2;
+        env->cycles += interrupt_entry_cycles(env);
         return;
     }
 
@@ -836,6 +877,10 @@ static void mcs51_execute_one(MCS51CPUState *env)
         opcode == 0x70 || opcode == 0x80 || opcode == 0xd5 ||
         (opcode >= 0xd8 && opcode <= 0xdf))
         cycles = 2;
+
+    if (env->cycle_model == UC_MCS51_CYCLE_MODEL_CC253X) {
+        cycles = cc253x_cycles[opcode];
+    }
 
     env->pc = pc & 0xffffu;
     env->cycles += cycles;
