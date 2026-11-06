@@ -35,11 +35,14 @@ static inline void gen_uc_tracecode(TCGContext *tcg_ctx, int32_t size, int32_t t
     TCGv_i32 ttype;
     TCGv_ptr tuc = tcg_const_ptr(tcg_ctx, uc);
     TCGv_i64 tpc = tcg_const_i64(tcg_ctx, pc);
+    /* The wasm32 TCI inline-hook helper drops the user_data pointer argument.
+     * Route hooks through the dispatcher, which reads it from the hook record. */
+#if !defined(__EMSCRIPTEN__)
     TCGv_ptr tdata;
-    uc_engine* puc = uc;
+    uc_engine *puc = uc;
     struct list_item *cur;
-    struct hook* hk;
-    TCGTemp* args[] = {
+    struct hook *hk;
+    TCGTemp *args[] = {
         tcgv_ptr_temp(tcg_ctx, tuc),
         tcgv_i64_temp(tcg_ctx, tpc),
         tcgv_i32_temp(tcg_ctx, tsize),
@@ -47,9 +50,11 @@ static inline void gen_uc_tracecode(TCGContext *tcg_ctx, int32_t size, int32_t t
     };
 
     const int hook_type = type & UC_HOOK_IDX_MASK;
+#endif
+#if !defined(__EMSCRIPTEN__)
     if (puc->hooks_count[hook_type] == 1 && !(type & UC_HOOK_FLAG_NO_STOP)) {
         cur = puc->hook[hook_type].head;
-        
+
         while (cur) {
             hk = cur->data;
             if (!hk->to_delete) {
@@ -61,7 +66,9 @@ static inline void gen_uc_tracecode(TCGContext *tcg_ctx, int32_t size, int32_t t
             cur = cur->next;
         }
 
-    } else {
+    } else
+#endif
+    {
         ttype = tcg_const_i32(tcg_ctx, type);
         gen_helper_uc_tracecode(tcg_ctx, tsize, ttype, tuc, tpc);
         tcg_temp_free_i32(tcg_ctx, ttype);

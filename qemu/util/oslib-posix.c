@@ -118,6 +118,14 @@ void *qemu_anon_ram_alloc(struct uc_struct *uc, size_t size, uint64_t *alignment
         *alignment = MAX(get_allocation_granularity(), getpagesize());
     }
     return ptr;
+#elif defined(__EMSCRIPTEN__)
+    size_t align = QEMU_VMALLOC_ALIGN;
+    void *ptr = qemu_memalign(align, size);
+
+    if (ptr && alignment) {
+        *alignment = align;
+    }
+    return ptr;
 #else
     size_t align = QEMU_VMALLOC_ALIGN;
     void *ptr = qemu_ram_mmap(uc, size, align, false);
@@ -153,6 +161,8 @@ void qemu_anon_ram_free(struct uc_struct *uc, void *ptr, size_t size)
     if (ptr) {
         VirtualFree(ptr, 0, MEM_RELEASE);
     }
+#elif defined(__EMSCRIPTEN__)
+    free(ptr);
 #else
     //trace_qemu_anon_ram_free(ptr, size);
     qemu_ram_munmap(uc, ptr, size);

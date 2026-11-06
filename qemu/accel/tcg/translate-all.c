@@ -824,7 +824,20 @@ static inline void *split_cross_256mb(TCGContext *tcg_ctx, void *buf1, size_t si
 }
 #endif
 
-#ifdef USE_STATIC_CODE_GEN_BUFFER
+#if defined(TCG_TARGET_INTERPRETER)
+/* TCI stores bytecode in this buffer and interprets it, so it needs ordinary
+ * writable memory rather than an executable mapping. */
+void free_code_gen_buffer(struct uc_struct *uc)
+{
+    TCGContext *tcg_ctx = uc->tcg_ctx;
+    g_free(tcg_ctx->initial_buffer);
+}
+
+static inline void *alloc_code_gen_buffer(struct uc_struct *uc)
+{
+    return g_malloc(uc->tcg_ctx->code_gen_buffer_size);
+}
+#elif defined(USE_STATIC_CODE_GEN_BUFFER)
 static uint8_t static_code_gen_buffer[DEFAULT_CODE_GEN_BUFFER_SIZE]
     __attribute__((aligned(CODE_GEN_ALIGN)));
 

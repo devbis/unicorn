@@ -238,6 +238,7 @@ unset target_list_exclude
 # is impossible without a --enable-foo that exits if a feature is not found.
 
 tcg="yes"
+tcg_interpreter="no"
 membarrier=""
 debug="no"
 sanitizers="no"
@@ -416,6 +417,8 @@ elif check_define __NetBSD__; then
   targetos='NetBSD'
 elif check_define __APPLE__; then
   targetos='Darwin'
+elif check_define __EMSCRIPTEN__; then
+  targetos='Emscripten'
 else
   # This is a fatal error, but don't report it yet, because we
   # might be going to just print the --help text, or it might
@@ -556,6 +559,10 @@ fi
 HOST_VARIANT_DIR=""
 
 case $targetos in
+Emscripten)
+  supported_os="yes"
+  pie="no"
+;;
 MINGW32*)
   mingw32="yes"
   supported_os="yes"
@@ -753,6 +760,8 @@ for opt do
   ;;
   --enable-tcg) tcg="yes"
   ;;
+  --enable-tcg-interpreter) tcg_interpreter="yes"
+  ;;
   --disable-malloc-trim) malloc_trim="no"
   ;;
   --enable-malloc-trim) malloc_trim="yes"
@@ -920,6 +929,7 @@ Advanced options (experts only):
   --disable-werror         disable compilation abort on warning
   --disable-stack-protector disable compiler-provided stack protection
   --enable-malloc-trim     enable libc malloc_trim() for memory optimization
+  --enable-tcg-interpreter use the portable TCG interpreter on unsupported hosts
   --cpu=CPU                Build for host CPU [$cpu]
   --enable-debug-stack-usage
                            track the maximum stack usage of stacks created by qemu_alloc_stack
@@ -959,7 +969,7 @@ fi
 
 # Now we have handled --enable-tcg-interpreter and know we're not just
 # printing the help message, bail out if the host CPU isn't supported.
-if test "$ARCH" = "unknown"; then
+if test "$ARCH" = "unknown" && test "$tcg_interpreter" != "yes"; then
     error_exit "Unsupported CPU = $cpu, try --enable-tcg-interpreter"
 fi
 
