@@ -2188,15 +2188,15 @@ void tcg_flush_softmmu_tlb(struct uc_struct *uc)
 #if defined(__APPLE__) && defined(HAVE_PTHREAD_JIT_PROTECT) && (defined(__arm__) || defined(__aarch64__))
 static bool tb_exec_is_locked(struct uc_struct *uc)
 {
-    return uc->current_executable;
+    return uc_jit_current_executable;
 }
 
 static void tb_exec_change(struct uc_struct *uc, bool executable)
 {
-    assert_executable(uc->current_executable);
-    if (uc->current_executable != executable) {
+    assert_executable(uc_jit_current_executable);
+    if (uc_jit_current_executable != executable) {
         jit_write_protect(executable);
-        uc->current_executable = executable;
+        uc_jit_current_executable = executable;
         assert_executable(executable);
     }
 }

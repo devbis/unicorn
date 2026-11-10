@@ -32,6 +32,12 @@
 
 #if defined(__APPLE__) && defined(HAVE_PTHREAD_JIT_PROTECT) && (defined(__arm__) || defined(__aarch64__))
 
+/*
+ * The JIT mode belongs to the thread, not to an engine: an API call into another engine from a callback
+ * changes it, so the tracked state must be shared by every engine on the thread.
+ */
+extern __thread bool uc_jit_current_executable;
+
 // Returns the S3_6_c15_c1_5 register's value
 // Taken from
 // https://stackoverflow.com/questions/70019553/lldb-how-to-read-the-permissions-of-a-memory-region-for-a-thread
@@ -119,24 +125,24 @@ static inline void jit_write_protect(int enabled)
  */
 #define JIT_CALLBACK_GUARD(x)                       \
 {                                                   \
-    bool executable = uc->current_executable;       \
+    bool executable = uc_jit_current_executable;       \
     assert_executable(executable);                  \
     x;                                              \
-    if (uc->current_executable != executable) {     \
+    if (uc_jit_current_executable != executable) {     \
         jit_write_protect(executable);              \
-        uc->current_executable = executable;        \
+        uc_jit_current_executable = executable;        \
     }                                               \
 }                                                   \
 
 
 #define JIT_CALLBACK_GUARD_VAR(var, x)                  \
 {                                                       \
-    bool executable = uc->current_executable;           \
+    bool executable = uc_jit_current_executable;           \
     assert_executable(executable);                      \
     var = x;                                            \
-    if (uc->current_executable != executable) {         \
+    if (uc_jit_current_executable != executable) {         \
         jit_write_protect(executable);                  \
-        uc->current_executable = executable;            \
+        uc_jit_current_executable = executable;            \
     }                                                   \
 }                                                       \
 
