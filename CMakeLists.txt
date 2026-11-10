@@ -392,6 +392,14 @@ else()
     endif()
     set(TARGET_LIST "${TARGET_LIST} ")
 
+    # Configure falls back to the build runner uname when the compiler does not
+    # expose a native CPU. Emscripten uses the TCI interpreter, so no native
+    # host CPU flags should be added.
+    set(QEMU_CPU_OPTION)
+    if(EMSCRIPTEN)
+        set(QEMU_CPU_OPTION --cpu=unknown)
+    endif()
+
     set(TCG_INTERPRETER_OPTION)
     if(UNICORN_TCG_INTERPRETER)
         set(TCG_INTERPRETER_OPTION --enable-tcg-interpreter)
@@ -408,6 +416,7 @@ else()
         --cc=${CMAKE_C_COMPILER}
         ${EXTRA_CFLAGS}
         ${TARGET_LIST}
+        ${QEMU_CPU_OPTION}
         ${TCG_INTERPRETER_OPTION}
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
         RESULT_VARIABLE QEMU_CONFIGURE_RESULT
